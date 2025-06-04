@@ -6,13 +6,11 @@ import (
 )
 
 type KeyMap struct {
-	Logs        key.Binding
-	Quit        key.Binding
-	Help        key.Binding
-	Commands    key.Binding
-	FilePicker  key.Binding
-	Models      key.Binding
-	SwitchTheme key.Binding
+	Logs       key.Binding
+	Quit       key.Binding
+	Help       key.Binding
+	Commands   key.Binding
+	FilePicker key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -21,7 +19,6 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("ctrl+l"),
 			key.WithHelp("ctrl+l", "logs"),
 		),
-
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
 			key.WithHelp("ctrl+c", "quit"),
@@ -31,23 +28,13 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("ctrl+_"),
 			key.WithHelp("ctrl+?", "toggle help"),
 		),
-
 		Commands: key.NewBinding(
-			key.WithKeys("ctrl+k"),
-			key.WithHelp("ctrl+k", "commands"),
+			key.WithKeys("ctrl+p"),
+			key.WithHelp("ctrl+p", "commands"),
 		),
 		FilePicker: key.NewBinding(
 			key.WithKeys("ctrl+f"),
 			key.WithHelp("ctrl+f", "select files to upload"),
-		),
-		Models: key.NewBinding(
-			key.WithKeys("ctrl+o"),
-			key.WithHelp("ctrl+o", "model selection"),
-		),
-
-		SwitchTheme: key.NewBinding(
-			key.WithKeys("ctrl+t"),
-			key.WithHelp("ctrl+t", "switch theme"),
 		),
 	}
 }

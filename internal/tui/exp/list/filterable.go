@@ -23,6 +23,7 @@ type FilterableList[T FilterableItem] interface {
 	List[T]
 	Cursor() *tea.Cursor
 	SetInputWidth(int)
+	SetInputPlaceholder(string)
 }
 
 type HasMatchIndexes interface {
@@ -30,7 +31,7 @@ type HasMatchIndexes interface {
 }
 
 type filterableOptions struct {
-	listOptions []listOption
+	listOptions []ListOption
 	placeholder string
 	inputHidden bool
 	inputWidth  int
@@ -67,7 +68,7 @@ func WithFilterInputStyle(inputStyle lipgloss.Style) filterableListOption {
 	}
 }
 
-func WithFilterListOptions(opts ...listOption) filterableListOption {
+func WithFilterListOptions(opts ...ListOption) filterableListOption {
 	return func(f *filterableOptions) {
 		f.listOptions = opts
 	}
@@ -294,4 +295,8 @@ func (f *filterableList[T]) IsFocused() bool {
 
 func (f *filterableList[T]) SetInputWidth(w int) {
 	f.inputWidth = w
+}
+
+func (f *filterableList[T]) SetInputPlaceholder(ph string) {
+	f.placeholder = ph
 }

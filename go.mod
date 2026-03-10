@@ -6,7 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.0.0
 	charm.land/bubbletea/v2 v2.0.1
 	charm.land/catwalk v0.28.1
-	charm.land/fantasy v0.11.1
+	charm.land/fantasy v0.11.2-0.20260310172626-1b0027b03f8b
 	charm.land/glamour/v2 v2.0.0-20260123212943-6014aa153a9b
 	charm.land/lipgloss/v2 v2.0.0
 	charm.land/log/v2 v2.0.0-20251110204020-529bb77f35da

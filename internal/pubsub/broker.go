@@ -5,9 +5,10 @@
 //
 //   - [Broker.Publish] is best-effort and lossy under contention. If a
 //     subscriber's channel is full, the event is dropped for that
-//     subscriber and a counter is incremented. This is the right choice
-//     for high-frequency intermediate updates (e.g. streaming token
-//     deltas) where only the latest state matters.
+//     subscriber, a warning is logged, and a counter is incremented.
+//     This is the right choice for high-frequency intermediate updates
+//     (e.g. streaming token deltas) where only the latest state
+//     matters.
 //
 //   - [Broker.PublishMustDeliver] is bounded-blocking. For each
 //     subscriber it first tries a non-blocking send, then falls back to
@@ -31,7 +32,12 @@ import (
 )
 
 const (
-	bufferSize = 64
+	// bufferSize is the per-subscriber channel capacity for any broker
+	// created via NewBroker. Publish is non-blocking, so a full buffer
+	// drops events (with a warning log); sized to cover a long
+	// streaming assistant turn (~one UpdatedEvent per token) even under
+	// TUI render stalls.
+	bufferSize = 4096
 
 	// defaultMustDeliverTimeout is the per-subscriber upper bound on how
 	// long [Broker.PublishMustDeliver] will block waiting for buffer
@@ -44,7 +50,6 @@ type Broker[T any] struct {
 	mu                   sync.RWMutex
 	done                 chan struct{}
 	subCount             int
-	maxEvents            int
 	channelBufferSize    int
 	mustDeliverTimeout   time.Duration
 	dropCount            atomic.Uint64
@@ -52,14 +57,13 @@ type Broker[T any] struct {
 }
 
 func NewBroker[T any]() *Broker[T] {
-	return NewBrokerWithOptions[T](bufferSize, 1000)
+	return NewBrokerWithOptions[T](bufferSize)
 }
 
-func NewBrokerWithOptions[T any](channelBufferSize, maxEvents int) *Broker[T] {
+func NewBrokerWithOptions[T any](channelBufferSize int) *Broker[T] {
 	return &Broker[T]{
 		subs:               make(map[chan Event[T]]struct{}),
 		done:               make(chan struct{}),
-		maxEvents:          maxEvents,
 		channelBufferSize:  channelBufferSize,
 		mustDeliverTimeout: defaultMustDeliverTimeout,
 	}
@@ -155,9 +159,9 @@ func (b *Broker[T]) MustDeliverDropCount() uint64 {
 // Publish delivers an event to every active subscriber.
 //
 // Delivery is non-blocking and lossy: if a subscriber's channel is full
-// the event is dropped for that subscriber and [Broker.DropCount] is
-// incremented. Use [Broker.PublishMustDeliver] for events that must not
-// be silently dropped.
+// the event is dropped for that subscriber, a warning is logged, and
+// [Broker.DropCount] is incremented. Use [Broker.PublishMustDeliver]
+// for events that must not be silently dropped.
 func (b *Broker[T]) Publish(t EventType, payload T) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -174,9 +178,11 @@ func (b *Broker[T]) Publish(t EventType, payload T) {
 		select {
 		case sub <- event:
 		default:
-			// Channel is full, subscriber is slow - skip this event.
-			// Lossy by design; counted so saturation is observable.
+			// Channel is full, subscriber is slow — skip this event.
+			// Lossy by design; counted and logged so saturation is
+			// observable.
 			b.dropCount.Add(1)
+			slog.Warn("Pubsub buffer full; dropping event", "type", t)
 		}
 	}
 }

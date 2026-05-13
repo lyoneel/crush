@@ -336,7 +336,7 @@ func TestBroker_PublishLossyDropCounter(t *testing.T) {
 	t.Parallel()
 
 	// Tiny channel buffer so we can saturate from a single sender.
-	b := pubsub.NewBrokerWithOptions[int](1, 1000)
+	b := pubsub.NewBrokerWithOptions[int](1)
 	defer b.Shutdown()
 
 	subCtx, cancel := context.WithCancel(t.Context())
@@ -356,7 +356,7 @@ func TestBroker_PublishLossyDropCounter(t *testing.T) {
 func TestBroker_PublishMustDeliverHonorsTimeout(t *testing.T) {
 	t.Parallel()
 
-	b := pubsub.NewBrokerWithOptions[int](1, 1000)
+	b := pubsub.NewBrokerWithOptions[int](1)
 	b.SetMustDeliverTimeout(20 * time.Millisecond)
 	defer b.Shutdown()
 
@@ -384,7 +384,7 @@ func TestBroker_PublishMustDeliverHonorsTimeout(t *testing.T) {
 func TestBroker_PublishMustDeliverWithReader(t *testing.T) {
 	t.Parallel()
 
-	b := pubsub.NewBrokerWithOptions[int](1, 1000)
+	b := pubsub.NewBrokerWithOptions[int](1)
 	b.SetMustDeliverTimeout(50 * time.Millisecond)
 	defer b.Shutdown()
 
@@ -657,7 +657,7 @@ func TestUpdate_StructuralFlushUsesMustDeliver(t *testing.T) {
 			svc := NewService(q, WithDebounce(time.Hour))
 			impl := svc.(*service)
 			impl.Shutdown()
-			impl.Broker = pubsub.NewBrokerWithOptions[Message](1, 1000)
+			impl.Broker = pubsub.NewBrokerWithOptions[Message](1)
 			impl.SetMustDeliverTimeout(40 * time.Millisecond)
 
 			subCtx, cancel := context.WithCancel(t.Context())

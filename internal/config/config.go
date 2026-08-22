@@ -278,6 +278,7 @@ type TUIOptions struct {
 	Completions Completions `json:"completions,omitzero" jsonschema:"description=Completions UI options"`
 	Transparent *bool       `json:"transparent,omitempty" jsonschema:"description=Enable transparent background for the TUI interface,default=false"`
 	Scrollbar   string      `json:"scrollbar,omitempty" jsonschema:"description=Chat scrollbar visibility,enum=default,enum=always,enum=never,default=default"`
+	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
 }
 
 // Completions defines options for the completions UI.
@@ -296,6 +297,20 @@ const (
 	ScrollbarAlways  = "always"  // Always show when content exceeds viewport
 	ScrollbarNever   = "never"   // Never show scrollbar
 )
+
+// ExitBanner selects what Crush prints after the TUI exits.
+type ExitBanner string
+
+const (
+	ExitBannerDefault ExitBanner = "default" // Full ASCII art logo with padding
+	ExitBannerCompact ExitBanner = "compact" // Session and resume lines only, no logo or padding
+	ExitBannerNone    ExitBanner = "none"    // No exit banner
+)
+
+// Full reports whether the banner carries the logo and its surrounding
+// padding. Only compact drops them, so an unrecognized value renders the
+// full banner rather than nothing.
+func (e ExitBanner) Full() bool { return e != ExitBannerCompact }
 
 type Permissions struct {
 	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"`

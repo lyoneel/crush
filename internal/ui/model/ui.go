@@ -4085,6 +4085,14 @@ func (m *UI) CurrentSession() *session.Session {
 	return m.session
 }
 
+// Config returns the active config.
+func (m *UI) Config() *config.Config {
+	if m.com == nil {
+		return nil
+	}
+	return m.com.Config()
+}
+
 // mimeOf detects the MIME type of the given content.
 func mimeOf(content []byte) string {
 	mimeBufferSize := min(512, len(content))

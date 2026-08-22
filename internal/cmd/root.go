@@ -166,51 +166,81 @@ var heartbit = lipgloss.NewStyle().Foreground(charmtone.Dolly).SetString(`
            ▀▀▀▀▀▀
 `)
 
+// exitBannerFallbackWidth is used when stdout is not a terminal, so the
+// banner still wraps to something sane when output is piped or captured.
+const exitBannerFallbackWidth = 80
+
 // printSessionResume prints the session title and resume hint to stdout after
 // the TUI exits, so the user can resume the session with `crush -s <id>`.
 // Nothing is printed when there is no active session.
 func printSessionResume(model *ui.UI) {
-	out := colorprofile.NewWriter(os.Stderr, os.Environ())
-
-	t := styles.ThemeForProvider("")
-	crushLogo := logo.Render(t.Logo.GradCanvas, version.Version, true, logo.Opts{
-		FieldColor:   t.Logo.FieldColor,
-		TitleColorA:  t.Logo.TitleColorA,
-		TitleColorB:  t.Logo.TitleColorB,
-		CharmColor:   t.Logo.CharmColor,
-		VersionColor: t.Logo.VersionColor,
-		Hyper:        false,
-	})
+	banner := config.ExitBannerDefault
+	if cfg := model.Config(); cfg != nil && cfg.Options.TUI != nil && cfg.Options.TUI.ExitBanner != "" {
+		banner = cfg.Options.TUI.ExitBanner
+	}
+	if banner == config.ExitBannerNone {
+		return
+	}
 
 	sess := model.CurrentSession()
 	hasSession := sess != nil && sess.ID != ""
-
-	tw, _, _ := term.GetSize(os.Stdout.Fd())
-	style := lipgloss.NewStyle().Padding(1, 3)
-	contentWidth := tw - style.GetHorizontalFrameSize()
-
-	info := crushLogo +
-		"\nThanks for using Crush! " +
-		lipgloss.NewStyle().Width(contentWidth).Render(randomExitMessage())
-
-	if hasSession {
-		title := strings.ReplaceAll(sess.Title, "\n", " ")
-
-		labelWidth := lipgloss.Width("Session  ")
-		titleWidth := contentWidth - labelWidth
-		if titleWidth > 0 {
-			title = ansi.Truncate(title, titleWidth, "…")
-		}
-
-		hash := session.HashID(sess.ID)[:7]
-		sessionLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Session  ") + title
-		continueLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Continue ") + "crush -s " + hash
-		info += "\n\n" + sessionLine + "\n" + continueLine
+	// The compact banner is only the resume hint, so with no session there is
+	// nothing left to print and Crush exits silently.
+	if !banner.Full() && !hasSession {
+		return
 	}
 
-	body := style.Width(tw).Render(info)
+	style := lipgloss.NewStyle()
+	if banner.Full() {
+		style = style.Padding(1, 3)
+	}
 
-	fmt.Fprintln(out, body)
+	tw, _, _ := term.GetSize(os.Stdout.Fd())
+	if tw <= 0 {
+		tw = exitBannerFallbackWidth
+	}
+	contentWidth := tw - style.GetHorizontalFrameSize()
+
+	var info strings.Builder
+	if banner.Full() {
+		t := styles.ThemeForProvider("")
+		info.WriteString(logo.Render(t.Logo.GradCanvas, version.Version, true, logo.Opts{
+			FieldColor:   t.Logo.FieldColor,
+			TitleColorA:  t.Logo.TitleColorA,
+			TitleColorB:  t.Logo.TitleColorB,
+			CharmColor:   t.Logo.CharmColor,
+			VersionColor: t.Logo.VersionColor,
+			Hyper:        false,
+		}))
+		info.WriteString("\nThanks for using Crush! ")
+		info.WriteString(lipgloss.NewStyle().Width(contentWidth).Render(randomExitMessage()))
+	}
+	if hasSession {
+		if info.Len() > 0 {
+			info.WriteString("\n\n")
+		}
+		info.WriteString(sessionResumeLines(sess, contentWidth))
+	}
+
+	out := colorprofile.NewWriter(os.Stderr, os.Environ())
+	fmt.Fprintln(out, style.Render(info.String()))
+}
+
+// sessionResumeLines returns the "Session  <title>\nContinue crush -s <hash>"
+// pair used by the exit banner.
+func sessionResumeLines(sess *session.Session, contentWidth int) string {
+	title := strings.ReplaceAll(sess.Title, "\n", " ")
+
+	labelWidth := lipgloss.Width("Session  ")
+	titleWidth := contentWidth - labelWidth
+	if titleWidth > 0 {
+		title = ansi.Truncate(title, titleWidth, "…")
+	}
+
+	hash := session.HashID(sess.ID)[:7]
+	sessionLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Session  ") + title
+	continueLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Continue ") + "crush -s " + hash
+	return sessionLine + "\n" + continueLine
 }
 
 // copied from cobra:

@@ -399,6 +399,27 @@ func writeOptions(b *strings.Builder, cfg *config.ConfigStore) {
 	autoSummarize := !c.Options.DisableAutoSummarize
 	opts = append(opts, kv{"auto_summarize", fmt.Sprintf("%v", autoSummarize)})
 
+	if c.Options.TUI != nil {
+		compactMode := c.Options.TUI.CompactMode
+		diffMode := c.Options.TUI.DiffMode
+		if diffMode == "" {
+			diffMode = "unified"
+		}
+		scrollbar := c.Options.TUI.Scrollbar
+		if scrollbar == "" {
+			scrollbar = config.ScrollbarDefault
+		}
+		exitBanner := c.Options.TUI.ExitBanner
+		if exitBanner == "" {
+			exitBanner = config.ExitBannerDefault
+		}
+
+		opts = append(opts, kv{"compact_mode", fmt.Sprintf("%v", compactMode)})
+		opts = append(opts, kv{"diff_mode", diffMode})
+		opts = append(opts, kv{"scrollbar", scrollbar})
+		opts = append(opts, kv{"exit_banner", string(exitBanner)})
+	}
+
 	slices.SortFunc(opts, func(a, b kv) int { return strings.Compare(a.key, b.key) })
 	b.WriteString("[options]\n")
 	for _, o := range opts {

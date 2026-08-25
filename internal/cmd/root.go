@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -38,9 +37,8 @@ import (
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/skills"
 	"github.com/charmbracelet/crush/internal/ui/common"
-	"github.com/charmbracelet/crush/internal/ui/logo"
+	"github.com/charmbracelet/crush/internal/ui/exitbanner"
 	ui "github.com/charmbracelet/crush/internal/ui/model"
-	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/crush/internal/version"
 	"github.com/charmbracelet/crush/internal/workspace"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -147,7 +145,11 @@ crush --continue
 			slog.Error("TUI run error", "error", err)
 			return errors.New("Crush crashed. If metrics are enabled, we were notified about it. If you'd like to report it, please copy the stacktrace above and open an issue at https://github.com/charmbracelet/crush/issues/new?template=bug.yml") //nolint:staticcheck
 		}
-		printSessionResume(model)
+		var banner config.ExitBanner
+		if cfg := com.Config(); cfg != nil {
+			banner = cfg.Options.TUI.ExitBanner
+		}
+		printSessionResume(model, banner)
 		return nil
 	},
 }
@@ -166,114 +168,21 @@ var heartbit = lipgloss.NewStyle().Foreground(charmtone.Dolly).SetString(`
            ▀▀▀▀▀▀
 `)
 
-// exitBannerFallbackWidth is used when stdout is not a terminal, so the
-// banner still wraps to something sane when output is piped or captured.
-const exitBannerFallbackWidth = 80
-
-// printSessionResume prints the session title and resume hint to stdout after
-// the TUI exits, so the user can resume the session with `crush -s <id>`.
-// Nothing is printed when there is no active session.
-func printSessionResume(model *ui.UI) {
-	banner := config.ExitBannerDefault
-	if cfg := model.Config(); cfg != nil && cfg.Options.TUI != nil && cfg.Options.TUI.ExitBanner != "" {
-		banner = cfg.Options.TUI.ExitBanner
-	}
-	if banner == config.ExitBannerNone {
-		return
-	}
-
-	sess := model.CurrentSession()
-	hasSession := sess != nil && sess.ID != ""
-	// The compact banner is only the resume hint, so with no session there is
-	// nothing left to print and Crush exits silently.
-	if !banner.Full() && !hasSession {
-		return
-	}
-
-	style := lipgloss.NewStyle()
-	if banner.Full() {
-		style = style.Padding(1, 3)
-	}
-
+// printSessionResume prints the exit banner after the TUI exits, including the
+// session title and the hint to resume it with `crush -s <id>`. The banner
+// style decides how much of that is shown; see config.ExitBanner.
+func printSessionResume(model *ui.UI, banner config.ExitBanner) {
 	tw, _, _ := term.GetSize(os.Stdout.Fd())
-	if tw <= 0 {
-		tw = exitBannerFallbackWidth
+	body := exitbanner.Render(banner, model.CurrentSession(), tw)
+	if body == "" {
+		return
 	}
-	contentWidth := tw - style.GetHorizontalFrameSize()
-
-	var info strings.Builder
-	if banner.Full() {
-		t := styles.ThemeForProvider("")
-		info.WriteString(logo.Render(t.Logo.GradCanvas, version.Version, true, logo.Opts{
-			FieldColor:   t.Logo.FieldColor,
-			TitleColorA:  t.Logo.TitleColorA,
-			TitleColorB:  t.Logo.TitleColorB,
-			CharmColor:   t.Logo.CharmColor,
-			VersionColor: t.Logo.VersionColor,
-			Hyper:        false,
-		}))
-		info.WriteString("\nThanks for using Crush! ")
-		info.WriteString(lipgloss.NewStyle().Width(contentWidth).Render(randomExitMessage()))
-	}
-	if hasSession {
-		if info.Len() > 0 {
-			info.WriteString("\n\n")
-		}
-		info.WriteString(sessionResumeLines(sess, contentWidth))
-	}
-
-	out := colorprofile.NewWriter(os.Stderr, os.Environ())
-	fmt.Fprintln(out, style.Render(info.String()))
-}
-
-// sessionResumeLines returns the "Session  <title>\nContinue crush -s <hash>"
-// pair used by the exit banner.
-func sessionResumeLines(sess *session.Session, contentWidth int) string {
-	title := strings.ReplaceAll(sess.Title, "\n", " ")
-
-	labelWidth := lipgloss.Width("Session  ")
-	titleWidth := contentWidth - labelWidth
-	if titleWidth > 0 {
-		title = ansi.Truncate(title, titleWidth, "…")
-	}
-
-	hash := session.HashID(sess.ID)[:7]
-	sessionLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Session  ") + title
-	continueLine := lipgloss.NewStyle().Foreground(charmtone.Charple).Render("Continue ") + "crush -s " + hash
-	return sessionLine + "\n" + continueLine
+	fmt.Fprintln(colorprofile.NewWriter(os.Stderr, os.Environ()), body)
 }
 
 // copied from cobra:
 const defaultVersionTemplate = `{{with .DisplayName}}{{printf "%s " .}}{{end}}{{printf "version %s" .Version}}
 `
-
-// randomExitMessage returns a random exit message.
-func randomExitMessage() string {
-	messages := []string{
-		"",
-		"See ya later.",
-		"You look great.",
-		"Have a gorgeous time.",
-		"Get some rest.",
-		"Come back soon.",
-		"You worked handsomely.",
-		"Time for a snack.",
-		"Who’s hungry?",
-		"That was fun.",
-		"See you at breakfast?",
-		"Time for a nap.",
-		"Who wants some spaghetti?",
-		"Take care of yourself.",
-		"Remember to hydrate.",
-		"Time for a swim?",
-		"You’re quite glamorous, you know.",
-		"Nice work.",
-		"You’re a sensation.",
-		"Where’s my eyeliner?",
-		"It’s tea time.",
-	}
-	return messages[rand.IntN(len(messages))]
-}
 
 func Execute() {
 	// FIXME: config.Load uses slog internally during provider resolution,

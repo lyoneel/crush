@@ -281,15 +281,30 @@ type TUIOptions struct {
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
 }
 
+// IsTransparent reports whether the TUI draws a transparent background. The
+// nil receiver and the unset pointer both mean opaque, so callers can ask
+// without unwrapping either.
+func (t *TUIOptions) IsTransparent() bool {
+	return t != nil && t.Transparent != nil && *t.Transparent
+}
+
 // Completions defines options for the completions UI.
 type Completions struct {
 	MaxDepth *int `json:"max_depth,omitempty" jsonschema:"description=Maximum depth for the ls tool,default=0,example=10"`
 	MaxItems *int `json:"max_items,omitempty" jsonschema:"description=Maximum number of items to return for the ls tool,default=1000,example=100"`
 }
 
+// Limits returns the configured completion limits. Zero means the user has not
+// pinned that limit, and callers fall back to their own built-in cap.
 func (c Completions) Limits() (depth, items int) {
 	return ptrValOr(c.MaxDepth, 0), ptrValOr(c.MaxItems, 0)
 }
+
+// Diff mode options.
+const (
+	DiffModeUnified = "unified" // Inline unified diffs
+	DiffModeSplit   = "split"   // Side-by-side diffs
+)
 
 // Scrollbar visibility options.
 const (
@@ -302,15 +317,16 @@ const (
 type ExitBanner string
 
 const (
-	ExitBannerDefault ExitBanner = "default" // Full ASCII art logo with padding
-	ExitBannerCompact ExitBanner = "compact" // Session and resume lines only, no logo or padding
-	ExitBannerNone    ExitBanner = "none"    // No exit banner
+	// ExitBannerDefault renders the full ASCII art logo with padding. It is
+	// also what the zero value and any unrecognized value fall back to.
+	ExitBannerDefault ExitBanner = "default"
+	// ExitBannerCompact renders only the session and resume lines, with no
+	// logo and no padding. With no active session it renders nothing at all,
+	// so Crush exits silently.
+	ExitBannerCompact ExitBanner = "compact"
+	// ExitBannerNone renders nothing.
+	ExitBannerNone ExitBanner = "none"
 )
-
-// Full reports whether the banner carries the logo and its surrounding
-// padding. Only compact drops them, so an unrecognized value renders the
-// full banner rather than nothing.
-func (e ExitBanner) Full() bool { return e != ExitBannerCompact }
 
 type Permissions struct {
 	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"`

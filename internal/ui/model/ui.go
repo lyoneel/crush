@@ -350,6 +350,10 @@ type UI struct {
 	// state still lands.
 	mcpRefreshQueued bool
 	mcpCheckedAt     time.Time
+	// mcpStartingRetries counts the consecutive starting-state re-probes
+	// driving the retry loop's exponential backoff. Event-driven refreshes
+	// renew the budget; settled states reset it.
+	mcpStartingRetries int
 
 	// skills
 	skillStates []*skills.SkillState

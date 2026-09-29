@@ -97,6 +97,35 @@ func TestMCPStartingRetryLoop(t *testing.T) {
 	require.Empty(t, cmds, "terminal states must not arm the retry tick")
 }
 
+// TestMCPStartingRetryBackoff pins the bound on the retry loop: consecutive
+// starting observations back the re-probe cadence off exponentially from
+// mcpStartingRetryDelay up to mcpStartingRetryMaxDelay, so a server that
+// never settles cannot drive an HTTP round-trip per second for the whole
+// session. Settled states reset the budget.
+func TestMCPStartingRetryBackoff(t *testing.T) {
+	require.Equal(t, mcpStartingRetryDelay, mcpStartingRetryBackoff(0))
+	require.Equal(t, 2*mcpStartingRetryDelay, mcpStartingRetryBackoff(1))
+	require.Equal(t, 4*mcpStartingRetryDelay, mcpStartingRetryBackoff(2))
+	require.Equal(t, mcpStartingRetryMaxDelay, mcpStartingRetryBackoff(64),
+		"the backoff must clamp at the max delay")
+
+	ws := &countingWorkspace{ready: true}
+	m := newBusyUI(ws)
+
+	starting := map[string]mcp.ClientInfo{"slow": {Name: "slow", State: mcp.StateStarting}}
+	for attempt := 1; attempt <= 3; attempt++ {
+		cmds := m.applyMCPStates(mcpStateChangedMsg{states: starting})
+		require.Len(t, cmds, 1, "a starting server must keep the retry tick armed")
+		require.Equal(t, attempt, m.mcpStartingRetries,
+			"each consecutive starting observation must advance the backoff")
+	}
+
+	m.applyMCPStates(mcpStateChangedMsg{states: map[string]mcp.ClientInfo{
+		"slow": {Name: "slow", State: mcp.StateConnected},
+	}})
+	require.Zero(t, m.mcpStartingRetries, "settled states must reset the backoff budget")
+}
+
 // TestMCPStatesTTLBackstop pins the backstop in the Update tail: when the
 // memoized MCP states outlive their TTL — the safety valve for state_changed
 // events missed in client/server mode — a refresh is re-dispatched.

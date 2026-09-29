@@ -23,11 +23,30 @@ import (
 // can pin it.
 var mcpStatesTTL = 5 * time.Second
 
-// mcpStartingRetryDelay is the cadence of the retry loop that keeps
+// mcpStartingRetryDelay is the initial cadence of the retry loop that keeps
 // re-probing MCP states while any server is still connecting, so a
 // "starting..." entry converges to the server's settled state even when
-// the state_changed event never arrives. Package var so tests can pin it.
+// the state_changed event never arrives. The cadence backs off
+// exponentially to mcpStartingRetryMaxDelay so a server that never settles
+// cannot drive a round-trip per second for the whole session. Package vars
+// so tests can pin them.
 var mcpStartingRetryDelay = 1 * time.Second
+
+// mcpStartingRetryMaxDelay caps the starting-retry backoff. Once the loop
+// has backed off this far, the TTL backstop (mcpStatesTTL) dominates the
+// probe cadence anyway.
+var mcpStartingRetryMaxDelay = 30 * time.Second
+
+// mcpStartingRetryBackoff returns the retry delay for the given
+// zero-based attempt, doubling from mcpStartingRetryDelay and clamping at
+// mcpStartingRetryMaxDelay.
+func mcpStartingRetryBackoff(attempt int) time.Duration {
+	delay := mcpStartingRetryDelay
+	for i := 0; i < attempt && delay < mcpStartingRetryMaxDelay; i++ {
+		delay *= 2
+	}
+	return min(delay, mcpStartingRetryMaxDelay)
+}
 
 // mcpStartingRetryMsg re-dispatches an MCP state refresh after the retry
 // delay; applyMCPStates arms it while any server is in StateStarting.
@@ -114,13 +133,18 @@ func (m *UI) applyMCPStates(msg mcpStateChangedMsg) []tea.Cmd {
 		}
 	}
 	// A server still connecting keeps the refresh loop armed: the next
-	// re-probe lands within mcpStartingRetryDelay even if the
-	// state_changed event is never delivered (late SSE attach, a
-	// reconnect gap, or a lossy broker in client/server mode).
+	// re-probe lands within the backoff delay even if the state_changed
+	// event is never delivered (late SSE attach, a reconnect gap, or a
+	// lossy broker in client/server mode). The delay doubles per
+	// consecutive starting observation up to mcpStartingRetryMaxDelay so
+	// a server that never settles stops driving per-second round-trips.
 	if anyMCPStarting(msg.states) {
-		cmds = append(cmds, tea.Tick(mcpStartingRetryDelay, func(time.Time) tea.Msg {
+		cmds = append(cmds, tea.Tick(mcpStartingRetryBackoff(m.mcpStartingRetries), func(time.Time) tea.Msg {
 			return mcpStartingRetryMsg{}
 		}))
+		m.mcpStartingRetries++
+	} else {
+		m.mcpStartingRetries = 0
 	}
 	return cmds
 }

@@ -118,6 +118,14 @@ func (w *countingWorkspace) MCPPendingAuth() []mcp.PendingAuthServer {
 
 func (w *countingWorkspace) MCPAuthURL(string) string { return "" }
 
+func (w *countingWorkspace) MCPServersDisabled(context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (w *countingWorkspace) MCPServersEnabled(context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (w *countingWorkspace) ListMessages(context.Context, string) ([]message.Message, error) {
 	return nil, nil
 }

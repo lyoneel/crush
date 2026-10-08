@@ -703,15 +703,17 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 
 	for range 10 {
 		require.NotNil(t, m.selectedLargeModel())
+		m.selectedSmallModel()
 		m.lspInfo(40, 5, true)
 		require.Equal(t, 3, m.lspErrorCount())
 	}
 
-	// modelInfo reaches provider config only through the memoized model;
-	// with the agent not ready it renders the empty state.
+	// modelInfo reaches provider config only through the memoized model
+	// and the cached workspace config; with the agent not ready it
+	// renders the empty state.
 	m.agentReady = false
 	for range 10 {
-		m.modelInfo(40)
+		m.modelInfo(40, false)
 	}
 
 	require.Zero(t, ws.syncProbes(), "render helpers must never probe the workspace")

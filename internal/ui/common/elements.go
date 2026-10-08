@@ -62,57 +62,76 @@ type ModelContextInfo struct {
 }
 
 // ModelInfo renders model information including name, provider, reasoning
-// settings, and optional context usage/cost. showHyperCredits controls the
-// hypercredit balance line; callers resolve it from the selected model so
+// settings, and optional context usage/cost. The effort or thinking
+// state rides inline after the model name in braces, the provider
+// follows in brackets, and showHyperCredits controls the hypercredit
+// balance line; callers resolve it from the selected model so
 // gateway-served Hyper models can show their balance too.
-func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, context *ModelContextInfo, width int, hyperCredits *int, showHyperCredits bool) string {
-	modelIcon := t.ModelInfo.Icon.Render(styles.ModelIcon)
+func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, context *ModelContextInfo, width int, hyperCredits *int, showHyperCredits bool, icon string) string {
 	modelName = t.ModelInfo.Name.Render(modelName)
 
-	// Build first line with model name and optionally provider on the same line
-	var firstLine string
+	modelLine := icon + " " + modelName
+	if reasoningInfo != "" {
+		modelLine += " " + t.ModelInfo.Reasoning.UnsetPadding().Render("{"+reasoningInfo+"}")
+	}
+
+	providerPart := ""
 	if providerName != "" {
-		providerInfo := t.ModelInfo.Provider.Render(fmt.Sprintf("via %s", providerName))
-		modelWithProvider := fmt.Sprintf("%s %s %s", modelIcon, modelName, providerInfo)
+		providerPart = t.ModelInfo.Provider.Render("["+providerName+"]")
+	}
+
+	var firstLine string
+	if providerPart != "" {
+		modelWithProvider := modelLine + " " + providerPart
 
 		// Check if it fits on one line
 		if lipgloss.Width(modelWithProvider) <= width {
 			firstLine = modelWithProvider
 		} else {
 			// If it doesn't fit, put provider on next line
-			firstLine = fmt.Sprintf("%s %s", modelIcon, modelName)
+			firstLine = modelLine
 		}
 	} else {
-		firstLine = fmt.Sprintf("%s %s", modelIcon, modelName)
+		firstLine = modelLine
 	}
 
 	parts := []string{firstLine}
 
 	// If provider didn't fit on first line, add it as second line
-	if providerName != "" && !strings.Contains(firstLine, "via") {
-		providerInfo := fmt.Sprintf("via %s", providerName)
-		parts = append(parts, t.ModelInfo.ProviderFallback.Render(providerInfo))
-	}
-
-	if reasoningInfo != "" {
-		parts = append(parts, t.ModelInfo.Reasoning.Render(reasoningInfo))
+	if providerPart != "" && !strings.Contains(firstLine, "[") {
+		parts = append(parts, t.ModelInfo.ProviderFallback.Render(providerPart))
 	}
 
 	if context != nil {
-		formattedInfo := formatTokensAndCost(t, context.ContextUsed, context.ModelContext, context.Cost, context.EstimatedUsage)
-		parts = append(parts, lipgloss.NewStyle().PaddingLeft(2).Render(formattedInfo))
+		parts = append(parts, ModelContextSummary(t, *context))
 	}
 
 	if showHyperCredits && hyperCredits != nil {
-		hcInfo := t.ModelInfo.HypercreditIcon.Render(styles.HypercreditIcon)
-		hcInfo += " "
-		hcInfo += t.ModelInfo.HypercreditText.Render(fmt.Sprintf("%s Hypercredits", FormatCredits(*hyperCredits)))
-		parts = append(parts, "", hcInfo)
+		parts = append(parts, "", HypercreditBalance(t, *hyperCredits))
 	}
 
 	return lipgloss.NewStyle().Width(width).Render(
 		lipgloss.JoinVertical(lipgloss.Left, parts...),
 	)
+}
+
+// ModelContextSummary renders the context and cost summary line in the
+// model info style, indented to align with the model lines. Callers
+// that stack several model blocks use it to place the summary below
+// them.
+func ModelContextSummary(t *styles.Styles, info ModelContextInfo) string {
+	formattedInfo := formatTokensAndCost(t, info.ContextUsed, info.ModelContext, info.Cost, info.EstimatedUsage)
+	return lipgloss.NewStyle().PaddingLeft(2).Render(formattedInfo)
+}
+
+// HypercreditBalance renders the hypercredit balance line in the model
+// info style, so callers that stack several model blocks can place the
+// balance after them.
+func HypercreditBalance(t *styles.Styles, credits int) string {
+	hcInfo := t.ModelInfo.HypercreditIcon.Render(styles.HypercreditIcon)
+	hcInfo += " "
+	hcInfo += t.ModelInfo.HypercreditText.Render(fmt.Sprintf("%s Hypercredits", FormatCredits(credits)))
+	return hcInfo
 }
 
 // formatTokensAndCost formats token usage and cost with appropriate units

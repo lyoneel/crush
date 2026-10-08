@@ -178,7 +178,7 @@ func TestParseStdout(t *testing.T) {
 func TestBuildEnv(t *testing.T) {
 	t.Parallel()
 
-	env := BuildEnv(EventPreToolUse, "bash", "sess-1", "/work", "/project", `{"command":"ls","file_path":"/tmp/f.txt"}`)
+	env := BuildEnv(EventPreToolUse, "bash", "sess-1", "/work", "/project", `{"command":"ls","file_path":"/tmp/f.txt"}`, "", "")
 
 	envMap := make(map[string]string)
 	for _, e := range env {

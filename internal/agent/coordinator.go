@@ -309,6 +309,12 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 		return nil, err
 	}
 
+	// Fork: fire the PromptSubmitted lifecycle hook before the turn
+	// dispatches; asynchronous and informational.
+	fireLifecycleHook(lifecycleRunnerFromStore(c.cfg, hooks.EventPromptSubmitted),
+		hooks.EventPromptSubmitted, sessionID,
+		hooks.SessionEventData{Prompt: prompt})
+
 	// MCP servers connect asynchronously (see mcp.Initialize).
 	//
 	// Interactive runs never wait for that to finish: the tool list below

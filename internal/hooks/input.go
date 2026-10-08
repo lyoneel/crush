@@ -16,16 +16,39 @@ import (
 // an older version. Unknown higher versions are still parsed but logged.
 const SupportedOutputVersion = 1
 
+// SessionPayload carries the session snapshot data lifecycle hooks
+// receive: the abandoned session on a switch, the newly active session,
+// or the finished session. Counts are always present; a missing side of
+// a transition marshals as JSON null.
+type SessionPayload struct {
+	ID               string  `json:"id"`
+	Title            string  `json:"title"`
+	MessageCount     int64   `json:"message_count"`
+	PromptTokens     int64   `json:"prompt_tokens"`
+	CompletionTokens int64   `json:"completion_tokens"`
+	Cost             float64 `json:"cost"`
+	UpdatedAt        int64   `json:"updated_at"`
+}
+
 // Payload is the JSON structure piped to hook commands via stdin.
 // ToolInput is emitted as a parsed JSON object for compatibility with
 // Claude Code hooks (which expect tool_input to be an object, not a
-// string).
+// string). The session fields only apply to lifecycle events: a tool
+// event leaves them unset.
 type Payload struct {
 	Event     string          `json:"event"`
 	SessionID string          `json:"session_id"`
 	CWD       string          `json:"cwd"`
-	ToolName  string          `json:"tool_name"`
-	ToolInput json.RawMessage `json:"tool_input"`
+	ToolName  string          `json:"tool_name,omitempty"`
+	ToolInput json.RawMessage `json:"tool_input,omitempty"`
+	Prompt    string          `json:"prompt,omitempty"`
+
+	// Lifecycle events only. A nil side marshals as null, so a session
+	// switch away from a first session carries previous_session: null.
+	PreviousSession *SessionPayload `json:"previous_session"`
+	NewSession      *SessionPayload `json:"new_session"`
+	// AgentFinished carries the finished session here.
+	Session *SessionPayload `json:"session,omitempty"`
 }
 
 // BuildPayload constructs the JSON stdin payload for a hook command.
@@ -48,9 +71,40 @@ func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON string) []b
 	return data
 }
 
+// SessionEventData carries the lifecycle-specific payload fields.
+// Previous and New apply to SessionSwitch; Prompt applies to
+// PromptSubmitted.
+type SessionEventData struct {
+	Previous *SessionPayload
+	New      *SessionPayload
+	Session  *SessionPayload
+	Prompt   string
+}
+
+// BuildSessionEventPayload constructs the JSON stdin payload for a
+// lifecycle hook command. Tool fields stay unset.
+func BuildSessionEventPayload(eventName, sessionID, cwd string, data SessionEventData) []byte {
+	p := Payload{
+		Event:           eventName,
+		SessionID:       sessionID,
+		CWD:             cwd,
+		PreviousSession: data.Previous,
+		NewSession:      data.New,
+		Session:         data.Session,
+		Prompt:          data.Prompt,
+	}
+	out, err := json.Marshal(p)
+	if err != nil {
+		return []byte("{}")
+	}
+	return out
+}
+
 // BuildEnv constructs the environment variable slice for a hook command.
 // It includes all current process env vars plus hook-specific ones.
-func BuildEnv(eventName, toolName, sessionID, cwd, projectDir, toolInputJSON string) []string {
+// previousSessionID and newSessionID apply to lifecycle events; tool
+// events pass empty strings, which yield empty variables.
+func BuildEnv(eventName, toolName, sessionID, cwd, projectDir, toolInputJSON, previousSessionID, newSessionID string) []string {
 	env := os.Environ()
 	env = append(env, shell.CrushEnvMarkers()...)
 	env = append(
@@ -60,6 +114,8 @@ func BuildEnv(eventName, toolName, sessionID, cwd, projectDir, toolInputJSON str
 		fmt.Sprintf("CRUSH_SESSION_ID=%s", sessionID),
 		fmt.Sprintf("CRUSH_CWD=%s", cwd),
 		fmt.Sprintf("CRUSH_PROJECT_DIR=%s", projectDir),
+		fmt.Sprintf("CRUSH_PREVIOUS_SESSION_ID=%s", previousSessionID),
+		fmt.Sprintf("CRUSH_NEW_SESSION_ID=%s", newSessionID),
 	)
 
 	// Extract tool-specific env vars from the JSON input.

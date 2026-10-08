@@ -911,6 +911,11 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 		}
+		// Fork: SessionSwitch lifecycle hook; fires before the previous
+		// session reference is replaced.
+		if sessionSwitched(m.session, msg.session) {
+			m.fireSessionSwitchHook(m.session, msg.session)
+		}
 		m.setState(uiChat, m.focus)
 		m.session = msg.session
 		m.sidebarOffset = 0

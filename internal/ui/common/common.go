@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/clipboard"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -168,6 +169,19 @@ func largeModelProviderID(ws workspace.Workspace) string {
 	return cfg.Models[config.SelectedModelTypeLarge].Provider
 }
 
+// largeModelID returns the model ID of the currently selected large
+// model, or the empty string if none is set or the workspace is nil.
+func largeModelID(ws workspace.Workspace) string {
+	if ws == nil {
+		return ""
+	}
+	cfg := ws.Config()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Models[config.SelectedModelTypeLarge].Model
+}
+
 // NewCommon returns common UI configurations using the given theme.
 func NewCommon(ws workspace.Workspace, themeName string) *Common {
 	s := LoadThemeStyles(themeName)
@@ -203,6 +217,14 @@ func ThemeStylesFromConfig(cfg *config.Config) styles.Styles {
 // by Hyper.
 func (c *Common) IsHyper() bool {
 	return largeModelProviderID(c.Workspace) == "hyper"
+}
+
+// IsHyperCredits reports whether the currently selected large model
+// consumes hypercredits and so should drive the balance display: models
+// of the hyper provider itself, and Hyper models served through a
+// gateway under the Hyper/ id prefix.
+func (c *Common) IsHyperCredits() bool {
+	return hyper.IsCreditsModel(largeModelProviderID(c.Workspace), largeModelID(c.Workspace))
 }
 
 // CenterRect returns a new [Rectangle] centered within the given area with the

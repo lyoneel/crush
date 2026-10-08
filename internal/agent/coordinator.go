@@ -1119,7 +1119,7 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", slot, errModelNotSelected)
 	}
-	return c.buildModelFromSelection(ctx, modelCfg, isSubAgent)
+	return c.buildModelFromSelectionSlot(ctx, slot, modelCfg, isSubAgent)
 }
 
 // buildModelFromSelection builds the model for an explicit selection,
@@ -1128,6 +1128,10 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 // gets: provider construction, catalog resolution, request timeouts, and
 // the provider-specific wrappers.
 func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg config.SelectedModel, isSubAgent bool) (Model, error) {
+	return c.buildModelFromSelectionSlot(ctx, config.SelectedModelTypeLarge, modelCfg, isSubAgent)
+}
+
+func (c *coordinator) buildModelFromSelectionSlot(ctx context.Context, slot config.SelectedModelType, modelCfg config.SelectedModel, isSubAgent bool) (Model, error) {
 	providerCfg, ok := c.cfg.Config().Providers.Get(modelCfg.Provider)
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", modelCfg.Provider, errModelProviderNotConfigured)
@@ -1165,6 +1169,16 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 	// the Hyper models to fetch it from /v1/credits on every request.
 	if modelCfg.Provider == hyper.Name {
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
+	}
+
+	// Fork: enforce the lowest possible reasoning effort for the small
+	// model, so background calls stay cheap regardless of the selected
+	// effort. effectiveReasoningEffort prefers the model config effort,
+	// so the forced value wins without touching the persisted selection.
+	if slot == config.SelectedModelTypeSmall {
+		if effort := config.LowestReasoningEffort(catwalkModel); effort != "" {
+			modelCfg.ReasoningEffort = effort
+		}
 	}
 
 	return Model{

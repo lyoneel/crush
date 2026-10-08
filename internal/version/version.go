@@ -27,7 +27,9 @@ func init() {
 	if ok {
 		mainVersion := info.Main.Version
 		if mainVersion != "" && mainVersion != "(devel)" {
-			Version = mainVersion
+			// Fork marker: builds from this fork carry the -ly suffix on
+			// top of the normal build-info version.
+			Version = mainVersion + "-ly"
 		}
 	}
 

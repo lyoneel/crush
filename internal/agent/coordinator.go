@@ -1031,6 +1031,16 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
 	}
 
+	// Fork: enforce the lowest possible reasoning effort for the small
+	// model, so background calls stay cheap regardless of the selected
+	// effort. effectiveReasoningEffort prefers the model config effort,
+	// so the forced value wins without touching the persisted selection.
+	if slot == config.SelectedModelTypeSmall {
+		if effort := config.LowestReasoningEffort(catwalkModel); effort != "" {
+			modelCfg.ReasoningEffort = effort
+		}
+	}
+
 	return Model{
 		Model:        languageModel,
 		CatwalkCfg:   *catwalkModel,

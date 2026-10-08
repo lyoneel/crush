@@ -104,7 +104,7 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 		deduped = append(deduped, h)
 	}
 
-	envVars := BuildEnv(eventName, toolName, sessionID, r.cwd, r.projectDir, toolInputJSON)
+	envVars := BuildEnv(eventName, toolName, sessionID, r.cwd, r.projectDir, toolInputJSON, "", "")
 	payload := BuildPayload(eventName, sessionID, r.cwd, toolName, toolInputJSON)
 
 	results := make([]HookResult, len(deduped))
@@ -139,6 +139,87 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 		"decision", agg.Decision.String(),
 	)
 	return agg, nil
+}
+
+// RunLifecycle executes all hooks configured for a lifecycle event
+// (SessionSwitch, PromptSubmitted, AgentFinished). Lifecycle hooks have
+// no tool name, so only hooks without a matcher match; results are
+// aggregated but callers treat the events as informational.
+func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, data SessionEventData) (AggregateResult, error) {
+	matching := r.matchingHooks("")
+	if len(matching) == 0 {
+		return AggregateResult{Decision: DecisionNone}, nil
+	}
+
+	seen := make(map[string]bool, len(matching))
+	var deduped []config.HookConfig
+	for _, h := range matching {
+		if seen[h.Command] {
+			continue
+		}
+		seen[h.Command] = true
+		deduped = append(deduped, h)
+	}
+
+	var previousID, newID string
+	if data.Previous != nil {
+		previousID = data.Previous.ID
+	}
+	if data.New != nil {
+		newID = data.New.ID
+	}
+	envVars := BuildEnv(eventName, "", sessionID, r.cwd, r.projectDir, "", previousID, newID)
+	payload := BuildSessionEventPayload(eventName, sessionID, r.cwd, data)
+
+	results := make([]HookResult, len(deduped))
+	var wg sync.WaitGroup
+	wg.Add(len(deduped))
+
+	for i, h := range deduped {
+		go func(idx int, hook config.HookConfig) {
+			defer wg.Done()
+			results[idx] = r.runOne(ctx, hook, envVars, payload)
+		}(i, h)
+	}
+	wg.Wait()
+
+	agg := aggregate(results, "")
+	agg.Hooks = make([]HookInfo, len(deduped))
+	for i, h := range deduped {
+		agg.Hooks[i] = HookInfo{
+			Name:     h.DisplayName(),
+			Matcher:  h.Matcher,
+			Decision: results[i].Decision.String(),
+			Halt:     results[i].Halt,
+			Reason:   results[i].Reason,
+		}
+	}
+	slog.Info(
+		"Hook completed",
+		"event", eventName,
+		"hooks", len(deduped),
+		"decision", agg.Decision.String(),
+	)
+	return agg, nil
+}
+
+// FireAsync runs a lifecycle event's hooks in a background goroutine
+// and ignores their decisions: lifecycle hooks are informational. A nil
+// runner is a no-op; errors and hook context land in the log.
+func FireAsync(runner *Runner, eventName, sessionID string, data SessionEventData) {
+	if runner == nil {
+		return
+	}
+	go func() {
+		result, err := runner.RunLifecycle(context.Background(), eventName, sessionID, data)
+		if err != nil {
+			slog.Error("Lifecycle hook runner failed", "event", eventName, "session_id", sessionID, "error", err)
+			return
+		}
+		if result.Context != "" {
+			slog.Debug("Lifecycle hook context", "event", eventName, "session_id", sessionID, "context", result.Context)
+		}
+	}()
 }
 
 // matchingHooks returns hooks whose matcher matches the tool name (or has

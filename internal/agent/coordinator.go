@@ -1053,16 +1053,25 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 	}
 
 	large := Model{
-		Model:      largeModel,
-		CatwalkCfg: *largeCatwalkModel,
-		ModelCfg:   largeModelCfg,
-		FlatRate:   largeProviderCfg.FlatRate,
+		Model:       largeModel,
+		CatwalkCfg:  *largeCatwalkModel,
+		ModelCfg:    largeModelCfg,
+		FlatRate:    largeProviderCfg.FlatRate,
+		ProviderCfg: largeProviderCfg,
+	}
+	// Fork: enforce the lowest possible reasoning effort for the small
+	// model, so background calls stay cheap regardless of the selected
+	// effort. effectiveReasoningEffort prefers the model config effort,
+	// so the forced value wins without touching the persisted selection.
+	if effort := config.LowestReasoningEffort(smallCatwalkModel); effort != "" {
+		smallModelCfg.ReasoningEffort = effort
 	}
 	small := Model{
-		Model:      smallModel,
-		CatwalkCfg: *smallCatwalkModel,
-		ModelCfg:   smallModelCfg,
-		FlatRate:   smallProviderCfg.FlatRate,
+		Model:       smallModel,
+		CatwalkCfg:  *smallCatwalkModel,
+		ModelCfg:    smallModelCfg,
+		FlatRate:    smallProviderCfg.FlatRate,
+		ProviderCfg: smallProviderCfg,
 	}
 
 	return large, small, nil

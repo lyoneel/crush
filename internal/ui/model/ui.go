@@ -6190,7 +6190,7 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	blocks := []string{
 		title,
 		"",
-		m.modelInfo(width),
+		m.modelInfo(width, false),
 		"",
 	}
 

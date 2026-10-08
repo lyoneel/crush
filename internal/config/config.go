@@ -915,6 +915,17 @@ func (c *Config) IsConfigured() bool {
 	return len(c.EnabledProviders()) > 0
 }
 
+// LowestReasoningEffort returns the lowest configured reasoning level
+// for the model, or the empty string when the model cannot reason or
+// declares no levels. The catalogs order the levels from lowest to
+// highest, so the first one is the cheapest.
+func LowestReasoningEffort(model *catwalk.Model) string {
+	if model == nil || !model.CanReason || len(model.ReasoningLevels) == 0 {
+		return ""
+	}
+	return model.ReasoningLevels[0]
+}
+
 func (c *Config) GetModel(provider, model string) *catwalk.Model {
 	if providerConfig, ok := c.Providers.Get(provider); ok {
 		for _, m := range providerConfig.Models {

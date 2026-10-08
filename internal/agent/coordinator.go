@@ -1043,10 +1043,12 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 
 	// Hyper completions no longer report the hypercredit balance, so wrap
 	// the Hyper models to fetch it from /v1/credits on every request.
-	if largeModelCfg.Provider == hyper.Name {
+	// Gateway-served models with the Hyper/ id prefix consume the same
+	// balance, so they are wrapped too.
+	if hyper.IsCreditsModel(largeModelCfg.Provider, largeModelID) {
 		largeModel = newHyperCreditsModel(largeModel, c.hyperAPIKey)
 	}
-	if smallModelCfg.Provider == hyper.Name {
+	if hyper.IsCreditsModel(smallModelCfg.Provider, smallModelID) {
 		smallModel = newHyperCreditsModel(smallModel, c.hyperAPIKey)
 	}
 

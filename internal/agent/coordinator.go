@@ -1163,7 +1163,9 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 
 	// Hyper completions no longer report the hypercredit balance, so wrap
 	// the Hyper models to fetch it from /v1/credits on every request.
-	if modelCfg.Provider == hyper.Name {
+	// Gateway-served models with the Hyper/ id prefix consume the same
+	// balance, so they are wrapped too.
+	if hyper.IsCreditsModel(modelCfg.Provider, modelCfg.Model) {
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
 	}
 

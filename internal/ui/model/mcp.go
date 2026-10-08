@@ -186,17 +186,19 @@ func (m *UI) mcpInfo(width, maxItems int, isSection bool) string {
 	return lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("%s\n\n%s", title, list))
 }
 
-// mcpCounts formats tool, prompt, and resource counts for display.
-func mcpCounts(t *styles.Styles, counts mcp.Counts) string {
+// mcpCounts formats tool, prompt, and resource counts in the LSP
+// diagnostics shape, a letter glued to its count with space-separated
+// groups, rendered plain: T3 P1 R100. Zero counts stay hidden.
+func mcpCounts(counts mcp.Counts) string {
 	var parts []string
 	if counts.Tools > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d tools", counts.Tools)))
+		parts = append(parts, fmt.Sprintf("T%d", counts.Tools))
 	}
 	if counts.Prompts > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d prompts", counts.Prompts)))
+		parts = append(parts, fmt.Sprintf("P%d", counts.Prompts))
 	}
 	if counts.Resources > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d resources", counts.Resources)))
+		parts = append(parts, fmt.Sprintf("R%d", counts.Resources))
 	}
 	return strings.Join(parts, " ")
 }
@@ -226,7 +228,7 @@ func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) strin
 			description = t.Resource.StatusText.Render("starting...")
 		case mcp.StateConnected:
 			icon = t.Resource.OnlineIcon.String()
-			extraContent = mcpCounts(t, m.Counts)
+			extraContent = mcpCounts(m.Counts)
 			if m.Channel {
 				badge := t.Resource.StatusText.Render("channel")
 				if extraContent != "" {

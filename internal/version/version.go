@@ -12,6 +12,10 @@ import (
 var (
 	Version = "devel"
 	Commit  = "unknown"
+	// Base is stamped via -ldflags on fork builds with the latest
+	// upstream release tag, so the version reports the release the fork
+	// is based on instead of the auto-bumped build-info pseudo version.
+	Base = ""
 	// BuildNumber is set via -ldflags on fork builds. It counts the
 	// builds of this fork checkout and lands in the version as the
 	// -ly-<N> suffix.
@@ -29,13 +33,17 @@ var (
 var baseVersionRegexp = regexp.MustCompile(`^v\d+\.\d+\.\d+`)
 
 // forkVersion keeps the upstream semver and appends the fork marker
-// -ly-<N>, where N is the fork build number. A dirty working tree and
-// the commit hash no longer show in the version; both stay visible in
-// the build info.
+// -ly-<N>, where N is the fork build number. The stamped Base wins so
+// the version reports the upstream release tag; a plain build falls
+// back to the build info version, whose base tag the toolchain bumps
+// by one patch on commits after the tag.
 func forkVersion(mainVersion string) string {
 	buildNumber := BuildNumber
 	if buildNumber == "" {
 		buildNumber = "0"
+	}
+	if Base != "" {
+		return Base + "-ly-" + buildNumber
 	}
 	if base := baseVersionRegexp.FindString(mainVersion); base != "" {
 		return base + "-ly-" + buildNumber

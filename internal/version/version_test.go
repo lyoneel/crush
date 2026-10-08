@@ -14,6 +14,7 @@ func TestForkVersion(t *testing.T) {
 		name        string
 		mainVersion string
 		buildNumber string
+		base        string
 		want        string
 	}{
 		{
@@ -27,6 +28,13 @@ func TestForkVersion(t *testing.T) {
 			mainVersion: "v0.97.2",
 			buildNumber: "4",
 			want:        "v0.97.2-ly-4",
+		},
+		{
+			name:        "stamped base wins over the build info version",
+			mainVersion: "v0.97.2-0.20261008054726-c528f55323d2",
+			buildNumber: "4",
+			base:        "v0.97.1",
+			want:        "v0.97.1-ly-4",
 		},
 		{
 			name:        "missing build number defaults to 0",
@@ -50,9 +58,10 @@ func TestForkVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			original := BuildNumber
-			t.Cleanup(func() { BuildNumber = original })
+			originalBase, originalNumber := Base, BuildNumber
+			t.Cleanup(func() { Base, BuildNumber = originalBase, originalNumber })
 			BuildNumber = tt.buildNumber
+			Base = tt.base
 
 			require.Equal(t, tt.want, forkVersion(tt.mainVersion))
 		})

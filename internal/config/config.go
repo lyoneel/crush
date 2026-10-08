@@ -925,6 +925,7 @@ func (c *Config) IsConfigured() bool {
 	return len(c.EnabledProviders()) > 0
 }
 
+
 func (c *Config) GetModel(provider, model string) *catwalk.Model {
 	if providerConfig, ok := c.Providers.Get(provider); ok {
 		for _, m := range providerConfig.Models {

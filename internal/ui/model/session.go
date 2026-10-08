@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/crush/internal/diff"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/history"
+	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/ui/common"
@@ -103,6 +104,60 @@ func (m *UI) loadSession(sessionID string) tea.Cmd {
 		}
 	}
 	return tea.Batch(load, m.reportCurrentSession(sessionID))
+}
+
+// sessionHookPayload converts a session snapshot into the hook payload
+// form. Mirrors the agent-side converter; the two packages do not share
+// the type.
+func sessionHookPayload(s session.Session) *hooks.SessionPayload {
+	return &hooks.SessionPayload{
+		ID:               s.ID,
+		Title:            s.Title,
+		MessageCount:     s.MessageCount,
+		PromptTokens:     s.PromptTokens,
+		CompletionTokens: s.CompletionTokens,
+		Cost:             s.Cost,
+		UpdatedAt:        s.UpdatedAt,
+	}
+}
+
+// sessionSwitched reports whether loading next is a session switch:
+// any first session counts as a switch, and loading the session that is
+// already displayed does not.
+func sessionSwitched(current, next *session.Session) bool {
+	return current == nil || current.ID != next.ID
+}
+
+// fireSessionSwitchHook fires the SessionSwitch lifecycle hook when the
+// displayed session changes: one call carries the abandoned session and
+// the newly active one, and a first session has no previous side.
+// Fire-and-forget: decisions are ignored, and nothing runs when no
+// hooks are configured.
+func (m *UI) fireSessionSwitchHook(previous, next *session.Session) {
+	cfg := m.com.Config()
+	if cfg == nil {
+		return
+	}
+	eventHooks := cfg.Hooks[hooks.EventSessionSwitch]
+	if len(eventHooks) == 0 {
+		return
+	}
+	cwd := m.com.Workspace.WorkingDir()
+	runner := hooks.NewRunner(eventHooks, cwd, cwd)
+
+	var previousPayload, nextPayload *hooks.SessionPayload
+	if previous != nil {
+		previousPayload = sessionHookPayload(*previous)
+	}
+	if next != nil {
+		nextPayload = sessionHookPayload(*next)
+	}
+	sessionID := ""
+	if next != nil {
+		sessionID = next.ID
+	}
+	hooks.FireAsync(runner, hooks.EventSessionSwitch, sessionID,
+		hooks.SessionEventData{Previous: previousPayload, New: nextPayload})
 }
 
 // reportCurrentSession returns a fire-and-forget tea.Cmd that

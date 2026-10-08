@@ -40,6 +40,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/session"
@@ -188,6 +189,10 @@ type Model struct {
 	CatwalkCfg catwalk.Model
 	ModelCfg   config.SelectedModel
 	FlatRate   bool
+	// ProviderCfg carries the provider configuration the model was built
+	// from, so call paths that bypass the coordinator (title generation)
+	// can still resolve provider options. Fork addition.
+	ProviderCfg config.ProviderConfig
 }
 
 // activeCancel wraps a context.CancelFunc with a unique pointer identity.
@@ -1295,6 +1300,13 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	a.activeRequests.Del(call.SessionID)
 	cancel()
 
+	// Fork: fire the AgentFinished lifecycle hook for every completed
+	// run, interactive and non-interactive; decisions are ignored. The
+	// session snapshot carries the final usage.
+	fireLifecycleHook(lifecycleRunnerFromStore(a.cfg, hooks.EventAgentFinished),
+		hooks.EventAgentFinished, call.SessionID,
+		hooks.SessionEventData{Session: sessionPayload(currentSession)})
+
 	// Send notification that agent has finished its turn (skip for
 	// nested/non-interactive sessions).
 	if !call.NonInteractive && a.notify != nil {
@@ -1893,8 +1905,14 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		if attempt.model.CatwalkCfg.CanReason {
 			tok = attempt.model.CatwalkCfg.DefaultMaxTokens
 		}
+		// Fork: title generation bypassed provider options entirely, so
+		// no reasoning effort was ever sent. Resolve them from the
+		// attempt's model, whose small-model config carries the enforced
+		// lowest effort.
+		attemptCall := streamCall
+		attemptCall.ProviderOptions = getProviderOptions(attempt.model, attempt.model.ProviderCfg)
 		agent := newAgent(attempt.model.Model, titlePrompt, tok)
-		resp, err = agent.Stream(ctx, streamCall)
+		resp, err = agent.Stream(ctx, attemptCall)
 		if err == nil && resp.Response.FinishReason != fantasy.FinishReasonLength {
 			model = attempt.model
 			slog.Debug("Generated title with " + attempt.name + " model")

@@ -811,6 +811,8 @@ type HookConfig struct {
 	Command string `json:"command" jsonschema:"required,description=Shell command to execute when the hook fires"`
 	// Timeout in seconds. Default 30.
 	Timeout int `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds for the hook command,default=30"`
+	// Fire-and-forget execution. Default false (synchronous).
+	Async bool `json:"async,omitempty" jsonschema:"description=Run this hook fire-and-forget instead of blocking the turn or tool call,default=false"`
 }
 
 // DisplayName returns the hook name for display purposes. It returns Name
@@ -858,7 +860,7 @@ type Config struct {
 
 	Tools Tools `json:"tools,omitzero" jsonschema:"description=Tool configurations"`
 
-	Hooks map[string][]HookConfig `json:"hooks,omitempty" jsonschema:"description=User-defined shell commands that fire on hook events (e.g. PreToolUse)"`
+	Hooks map[string][]HookConfig `json:"hooks,omitempty" jsonschema:"description=User-defined shell commands that fire on hook events (PreToolUse, PostToolUse, PreSession, PreSessionSwitch, PrePrompt, PostPrompt, PostResponse)"`
 
 	// Env is a map of environment variables set on startup.
 	Env map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set on startup"`

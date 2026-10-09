@@ -764,6 +764,14 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	}
 	userMsgCreated = true
 
+	// Fork: fire the PostPrompt lifecycle hook once the user prompt
+	// message is persisted, before the model call. Synchronous by
+	// default, recorded in the transcript so the chat shows the run
+	// below the prompt message.
+	fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostPrompt,
+		call.SessionID,
+		hooks.SessionEventData{Prompt: call.Prompt, Session: sessionPayload(currentSession)})
+
 	// Add the session to the context. The run context (genCtx) and its
 	// cancel func were already created and registered under the dispatch
 	// mutex above for both the accepted and in-process paths.
@@ -890,6 +898,13 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				if createErr != nil {
 					return callContext, prepared, createErr
 				}
+				// Fork: fire the PostPrompt lifecycle hook for the drained
+				// prompt once its user message is persisted; a queued
+				// follow-up prompt gets PrePrompt and PostPrompt like any
+				// prompt.
+				fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostPrompt,
+					call.SessionID,
+					hooks.SessionEventData{Prompt: queued.Prompt, Session: sessionPayload(currentSession)})
 				prepared.Messages = append(prepared.Messages, userMessage.ToAIMessage()...)
 			}
 
@@ -1300,13 +1315,17 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	a.activeRequests.Del(call.SessionID)
 	cancel()
 
-	// Fork: fire the AgentFinished lifecycle hook for every completed
+	// Fork: fire the PostResponse lifecycle hook for every completed
 	// run, interactive and non-interactive; decisions are ignored. The
-	// session snapshot carries the final usage, and the run is recorded
+	// session snapshot carries the final usage, and the final assistant
+	// text rides in the payload response field. The run is recorded
 	// in the transcript below the response.
-	fireRecordedLifecycleHook(a.messages, lifecycleRunnerFromStore(a.cfg, hooks.EventAgentFinished),
-		hooks.EventAgentFinished, call.SessionID,
-		hooks.SessionEventData{Session: sessionPayload(currentSession)})
+	currentAssistantText := ""
+	if currentAssistant != nil {
+		currentAssistantText = currentAssistant.Content().String()
+	}
+	fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostResponse, call.SessionID,
+		hooks.SessionEventData{Session: sessionPayload(currentSession), Response: currentAssistantText})
 
 	// Send notification that agent has finished its turn (skip for
 	// nested/non-interactive sessions).

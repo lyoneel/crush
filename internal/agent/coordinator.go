@@ -310,7 +310,7 @@ const sessionStartTimeout = 30 * time.Second
 // fireSessionStart fires the SessionStart lifecycle hook on the first
 // prompt of a session, before PromptSubmitted runs for the same prompt.
 // The gate is "no user text message exists yet": hook-only transcript
-// messages (for example the SessionNew record written at creation) must
+// messages (for example a PromptSubmitted record) must
 // not count as the session having been used. A missing or unreadable
 // message list falls back to firing (first-prompt assumption) and logs
 // at debug. The fire is synchronous under a bounded context so the

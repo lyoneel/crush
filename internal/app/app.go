@@ -298,7 +298,6 @@ func (app *App) resolveSession(ctx context.Context, continueSessionID string, us
 		if err != nil {
 			return session.Session{}, err
 		}
-		agent.FireSessionNew(app.config, app.Sessions, app.Messages, sess)
 		return sess, nil
 	}
 }

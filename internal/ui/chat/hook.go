@@ -23,7 +23,6 @@ var hookSeq atomic.Int64
 var lifecycleTag = map[string]string{
 	"PreToolUse":      "[PT]",
 	"SessionSwitch":   "[SS]",
-	"SessionNew":      "[SN]",
 	"SessionStart":    "[ST]",
 	"PromptSubmitted": "[PS]",
 	"AgentFinished":   "[AF]",

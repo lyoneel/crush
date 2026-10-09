@@ -13,7 +13,6 @@ import (
 // Hook event name constants.
 const (
 	EventPreToolUse      = "PreToolUse"
-	EventSessionNew      = "SessionNew"
 	EventSessionStart    = "SessionStart"
 	EventSessionSwitch   = "SessionSwitch"
 	EventPromptSubmitted = "PromptSubmitted"

@@ -17,6 +17,15 @@ import (
 // hookSeq disambiguates item ids across runs of the same event.
 var hookSeq atomic.Int64
 
+// lifecycleTag is the two-letter bracket tag shown in place of the full
+// event name on lifecycle hook lines. The head must stay within the
+// width budget of the body layout rendered by toolOutputHookIndicator.
+var lifecycleTag = map[string]string{
+	"SessionSwitch":   "[SS]",
+	"PromptSubmitted": "[PS]",
+	"AgentFinished":   "[AF]",
+}
+
 // HookItem renders lifecycle hook runs recorded in the transcript: one
 // line per hook, in the same shape as the PreToolUse tool indicator.
 type HookItem struct {
@@ -69,15 +78,22 @@ func (h *HookItem) RawRender(width int) string {
 	for i, run := range h.hooks {
 		infos[i] = hooks.HookInfo{Name: run.Name, Decision: run.Decision}
 	}
-	metadata, err := json.Marshal(hooks.HookMetadata{
+	metadata, err := json.Marshal(struct {
+		Hook *hooks.HookMetadata `json:"hook"`
+	}{Hook: &hooks.HookMetadata{
 		HookCount: len(infos),
 		Hooks:     infos,
-	})
+	}})
 	if err != nil {
 		return ansi.Truncate(h.event, max(width, 1), "…")
 	}
 
-	head := h.sty.Tool.HookLabel.Render(strings.ToUpper(h.event[:1]) + h.event[1:] + " hooks")
+	var head string
+	if tag, ok := lifecycleTag[h.event]; ok {
+		head = h.sty.Tool.HookLabel.Render("Hook ") + h.sty.Tool.HookTag.Render(tag)
+	} else {
+		head = h.sty.Tool.HookLabel.Render(strings.ToUpper(h.event[:1]) + h.event[1:] + " hooks")
+	}
 	body := toolOutputHookIndicator(h.sty, string(metadata), width)
 	if body == "" {
 		return head

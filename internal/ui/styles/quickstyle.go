@@ -819,6 +819,7 @@ func quickStyle(o quickStyleOpts) Styles {
 
 	// Hook styles
 	s.Tool.HookLabel = base.Foreground(o.successMoreSubtle)
+	s.Tool.HookTag = base.Foreground(o.fgMoreSubtle)
 	s.Tool.HookName = base
 	s.Tool.HookMatcher = base.Foreground(o.fgMoreSubtle)
 	s.Tool.HookArrow = base.Foreground(o.successMoreSubtle)

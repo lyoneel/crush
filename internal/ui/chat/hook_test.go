@@ -78,9 +78,10 @@ func TestHookItemRendersLegacyTag(t *testing.T) {
 }
 
 // TestHookItemSingleLine pins the native single-line shape: one line per
-// hook run in the form `Hook [tag] name → OK`, with no separate head
-// line and no blank line. This test fails on the pre-change code because
-// the old output carried the head line above the body.
+// hook run in the form `✓ Hook [tag] name → OK`, with the completion
+// glyph marking a lifecycle line, no separate head line, and no blank
+// line. This test fails on the pre-change code because the old output
+// carried the head line above the body.
 func TestHookItemSingleLine(t *testing.T) {
 	t.Parallel()
 
@@ -103,7 +104,7 @@ func TestHookItemSingleLine(t *testing.T) {
 			out := ansi.Strip(item.RawRender(100))
 			lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 			require.Len(t, lines, 1, "a lifecycle hook run must render as exactly one line: %q", out)
-			require.Equal(t, "Hook "+tt.tag+" prompt-pre.sh → OK", lines[0])
+			require.Equal(t, "✓ Hook "+tt.tag+" prompt-pre.sh → OK", lines[0])
 		})
 	}
 }
@@ -191,4 +192,49 @@ func TestHookFailureStatuses(t *testing.T) {
 			require.Contains(t, raw, sty.Tool.HookFailed.Render(tt.expected))
 		})
 	}
+}
+
+// TestHookCompletionGlyph pins the lifecycle completion marker: a green
+// check before the label on a completed run and a yellow cross on a
+// failed run. The glyph separates lifecycle completion notices from the
+// inline PreToolUse indicator, which has no glyph.
+func TestHookCompletionGlyph(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	t.Run("success renders green check", func(t *testing.T) {
+		t.Parallel()
+		item := NewHookItem(&sty, message.HookContent{
+			Event: "PrePrompt",
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none"}},
+		})
+		raw := item.RawRender(100)
+		require.Contains(t, raw, sty.Tool.JobIconSuccess.SetString(styles.ToolSuccess).Render())
+		require.NotContains(t, raw, styles.ToolError)
+	})
+
+	t.Run("failure renders yellow cross", func(t *testing.T) {
+		t.Parallel()
+		item := NewHookItem(&sty, message.HookContent{
+			Event: "PrePrompt",
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: "exit 5"}},
+		})
+		raw := item.RawRender(100)
+		require.Contains(t, raw, sty.Tool.HookFailed.SetString(styles.ToolError).Render())
+		require.NotContains(t, raw, styles.ToolSuccess)
+	})
+
+	t.Run("tool indicator has no glyph", func(t *testing.T) {
+		t.Parallel()
+		meta := &hooks.HookMetadata{
+			Event:     hooks.EventPreToolUse,
+			HookCount: 1,
+			Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Decision: "allow"}},
+		}
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(meta, nil), 100))
+		require.Contains(t, out, "Hook [PreTU]")
+		require.False(t, strings.Contains(out, styles.ToolSuccess+" Hook"),
+			"the inline PreToolUse line must not carry a completion glyph")
+	})
 }

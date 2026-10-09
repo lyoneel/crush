@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/hooks"
@@ -13,9 +12,6 @@ import (
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
 )
-
-// hookSeq disambiguates item ids across runs of the same event.
-var hookSeq atomic.Int64
 
 // lifecycleTag is the bracket tag shown in place of the full event name
 // on hook lines. The tag rule is a Pre/Post/On prefix plus 2-3 uppercase
@@ -50,19 +46,35 @@ type HookItem struct {
 	sty   *styles.Styles
 }
 
+// HookItemID returns the chat item id for the hook content of one
+// transcript message. The id is deterministic per message so a pending
+// hook line can be updated in place when the run completes.
+func HookItemID(msgID, event string) string {
+	return fmt.Sprintf("hook-%s-%s", msgID, event)
+}
+
 // NewHookItem builds a transcript item for a recorded lifecycle hook run.
-func NewHookItem(sty *styles.Styles, content message.HookContent) MessageItem {
+func NewHookItem(sty *styles.Styles, msgID string, content message.HookContent) MessageItem {
 	v := list.NewVersioned()
 	return &HookItem{
 		Versioned:                v,
 		highlightableMessageItem: defaultHighlighter(sty, v),
 		cachedMessageItem:        &cachedMessageItem{},
 		focusableMessageItem:     newFocusableMessageItem(v),
-		id:                       fmt.Sprintf("hook-%d-%s", hookSeq.Add(1), content.Event),
+		id:                       HookItemID(msgID, content.Event),
 		event:                    content.Event,
 		hooks:                    content.Hooks,
 		sty:                      sty,
 	}
+}
+
+// SetContent replaces the recorded hook runs and re-renders. The list
+// cache keys on the version, so the bump alone invalidates the entry.
+func (h *HookItem) SetContent(content message.HookContent) {
+	h.event = content.Event
+	h.hooks = content.Hooks
+	h.Bump()
+	h.clearCache()
 }
 
 // ID implements MessageItem.

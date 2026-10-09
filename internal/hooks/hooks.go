@@ -99,8 +99,14 @@ type HookResult struct {
 }
 
 // StatusTimeout marks a hook run that exceeded its timeout. A failed
-// hook run carries the status "exit <N>" with the process exit code.
+// hook run carries the status "exit <N>" with the process exit code,
+// and a still-running run carries StatusRunning.
 const StatusTimeout = "timeout"
+
+// StatusRunning marks a hook run that has started but not finished. It
+// rides on the pending transcript record an async fire writes before
+// the hook process starts.
+const StatusRunning = "running"
 
 // AggregateResult holds the combined outcome of all hooks for an event.
 type AggregateResult struct {

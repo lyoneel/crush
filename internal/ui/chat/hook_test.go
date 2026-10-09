@@ -35,7 +35,7 @@ func TestHookItemRendersLifecycleTag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.event, func(t *testing.T) {
 			t.Parallel()
-			item := NewHookItem(&sty, message.HookContent{
+			item := NewHookItem(&sty, "msg-1", message.HookContent{
 				Event: tt.event,
 				Hooks: []message.HookRun{{Event: tt.event, Name: "session-switch.sh", Decision: "allow"}},
 			})
@@ -67,7 +67,7 @@ func TestHookItemRendersLegacyTag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.event, func(t *testing.T) {
 			t.Parallel()
-			item := NewHookItem(&sty, message.HookContent{
+			item := NewHookItem(&sty, "msg-1", message.HookContent{
 				Event: tt.event,
 				Hooks: []message.HookRun{{Event: tt.event, Name: "legacy.sh", Decision: "allow"}},
 			})
@@ -97,7 +97,7 @@ func TestHookItemSingleLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.event, func(t *testing.T) {
 			t.Parallel()
-			item := NewHookItem(&sty, message.HookContent{
+			item := NewHookItem(&sty, "msg-1", message.HookContent{
 				Event: tt.event,
 				Hooks: []message.HookRun{{Event: tt.event, Name: "prompt-pre.sh", Decision: "allow"}},
 			})
@@ -115,7 +115,7 @@ func TestHookItemDenyRendersDenied(t *testing.T) {
 	t.Parallel()
 
 	sty := styles.CharmtonePantera()
-	item := NewHookItem(&sty, message.HookContent{
+	item := NewHookItem(&sty, "msg-1", message.HookContent{
 		Event: "PreSessionSwitch",
 		Hooks: []message.HookRun{{Event: "PreSessionSwitch", Name: "gate.sh", Decision: "deny"}},
 	})
@@ -130,7 +130,7 @@ func TestHookItemNarrowWidth(t *testing.T) {
 	t.Parallel()
 
 	sty := styles.CharmtonePantera()
-	item := NewHookItem(&sty, message.HookContent{
+	item := NewHookItem(&sty, "msg-1", message.HookContent{
 		Event: "PreSessionSwitch",
 		Hooks: []message.HookRun{{Event: "PreSessionSwitch", Name: "session-switch.sh", Decision: "allow"}},
 	})
@@ -147,7 +147,7 @@ func TestHookLabelAndTagDistinctColors(t *testing.T) {
 	t.Parallel()
 
 	sty := styles.CharmtonePantera()
-	item := NewHookItem(&sty, message.HookContent{
+	item := NewHookItem(&sty, "msg-1", message.HookContent{
 		Event: "PreSessionSwitch",
 		Hooks: []message.HookRun{{Event: "PreSessionSwitch", Name: "session-switch.sh", Decision: "allow"}},
 	})
@@ -181,7 +181,7 @@ func TestHookFailureStatuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			item := NewHookItem(&sty, message.HookContent{
+			item := NewHookItem(&sty, "msg-1", message.HookContent{
 				Event: "PrePrompt",
 				Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: tt.status}},
 			})
@@ -205,7 +205,7 @@ func TestHookCompletionGlyph(t *testing.T) {
 
 	t.Run("success renders green check", func(t *testing.T) {
 		t.Parallel()
-		item := NewHookItem(&sty, message.HookContent{
+		item := NewHookItem(&sty, "msg-1", message.HookContent{
 			Event: "PrePrompt",
 			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none"}},
 		})
@@ -216,7 +216,7 @@ func TestHookCompletionGlyph(t *testing.T) {
 
 	t.Run("failure renders yellow cross", func(t *testing.T) {
 		t.Parallel()
-		item := NewHookItem(&sty, message.HookContent{
+		item := NewHookItem(&sty, "msg-1", message.HookContent{
 			Event: "PrePrompt",
 			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: "exit 5"}},
 		})
@@ -237,4 +237,49 @@ func TestHookCompletionGlyph(t *testing.T) {
 		require.False(t, strings.Contains(out, styles.ToolSuccess+" Hook"),
 			"the inline PreToolUse line must not carry a completion glyph")
 	})
+}
+
+// TestHookPendingLine pins the running state of an async hook: a green
+// pending dot before the label and no status detail yet, matching the
+// bash tool's running indicator.
+func TestHookPendingLine(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+	item := NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning}},
+	})
+	raw := item.RawRender(100)
+	out := ansi.Strip(raw)
+
+	require.Contains(t, out, "● Hook [PrePR] slow-notify.sh")
+	require.NotContains(t, out, "OK")
+}
+
+// TestHookItemSetContentPinsUpdate pins the in-place update path: the
+// same item id serves the pending and the completed record, and
+// SetContent swaps the rendered lines and bumps the version so the
+// list cache invalidates.
+func TestHookItemSetContentPinsUpdate(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+	hookItem := NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning}},
+	})
+	item, ok := hookItem.(*HookItem)
+	require.True(t, ok)
+	before := item.Version()
+	item.SetContent(message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none"}},
+	})
+	after := item.Version()
+
+	require.Greater(t, after, before, "SetContent must bump the version")
+	out := ansi.Strip(item.RawRender(100))
+	require.Contains(t, out, "✓ Hook [PrePR] slow-notify.sh → OK")
+	require.NotContains(t, out, "●")
 }

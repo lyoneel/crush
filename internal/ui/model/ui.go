@@ -1852,6 +1852,25 @@ func (m *UI) setMessagePlanFlags(items []chat.MessageItem) {
 
 // appendSessionMessage appends a new message to the current session in the chat
 // if the message is a tool result it will update the corresponding tool call message
+// updateHookItems refreshes in place every hook item rendered from this
+// transcript message, so a pending async hook line becomes its
+// completion line without moving in the list. It reports whether any
+// item was updated.
+func (m *UI) updateHookItems(msg *message.Message) bool {
+	updated := false
+	for _, part := range msg.Parts {
+		hc, ok := part.(message.HookContent)
+		if !ok {
+			continue
+		}
+		if item, ok := m.chat.MessageItem(chat.HookItemID(msg.ID, hc.Event)).(*chat.HookItem); ok {
+			item.SetContent(hc)
+			updated = true
+		}
+	}
+	return updated
+}
+
 func (m *UI) appendSessionMessage(msg message.Message) tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -1989,6 +2008,17 @@ func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 	m.chat.SetAnimationsAllowed(true)
 	var cmds []tea.Cmd
 	existingItem := m.chat.MessageItem(msg.ID)
+
+	// Fork: hook-run records update in place, so a pending async hook
+	// line becomes its completion line without moving in the list.
+	if msg.OnlyHookParts() {
+		if updated := m.updateHookItems(&msg); updated {
+			if m.chat.Follow() {
+				m.chat.ScrollToBottom()
+			}
+			return nil
+		}
+	}
 
 	if existingItem != nil {
 		if assistantItem, ok := existingItem.(*chat.AssistantMessageItem); ok {

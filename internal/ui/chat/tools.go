@@ -836,14 +836,25 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	// the label is green, the tag is gray. Lifecycle events (hook
 	// completion notices recorded in the transcript) additionally get a
 	// leading status glyph so they read differently from the inline
-	// PreToolUse indicator: a green check when the hook completed and
-	// a yellow cross when it did not.
+	// PreToolUse indicator: a green pending dot while the run is still
+	// going, a green check when it completed, and a yellow cross when
+	// it did not. The glyph is per hook, so a section with mixed
+	// statuses carries the completion mark.
 	label := "Hook"
 	tag := ""
 	if t, ok := lifecycleTag[h.Event]; ok {
 		tag = t
 	}
-	lifecycle := h.Event != hooks.EventPreToolUse && h.Event != hooks.EventPostToolUse
+	lifecycle := false
+	glyph := ""
+	glyphStyle := sty.Tool.JobIconSuccess
+	if h.Event != hooks.EventPreToolUse && h.Event != hooks.EventPostToolUse {
+		lifecycle = true
+		if len(h.Hooks) == 1 && h.Hooks[0].Status == hooks.StatusRunning {
+			glyph = styles.ToolPending
+			glyphStyle = sty.Tool.IconPending
+		}
+	}
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
 	// for the name, matcher, and detail columns so they align. The name
@@ -907,7 +918,7 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, glyph, glyphStyle, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -946,8 +957,9 @@ func isLikelyPath(s string) bool {
 // renderHookLine renders a single hook indicator line with aligned columns.
 // label is the plain-text label column ("Hook") and tag the bracket tag
 // (for example "[PreTU]"); the tag may be empty. lifecycle renders a
-// leading completion glyph for transcript hook lines.
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle bool, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// leading glyph for transcript hook lines: glyph and glyphStyle are the
+// pending dot when the run has not finished, else the completion mark.
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle bool, glyph string, glyphStyle lipgloss.Style, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -974,16 +986,24 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, li
 	if tag != "" {
 		head += " " + tagStyle.Render(tag)
 	}
-	if lifecycle {
-		icon := styles.ToolSuccess
-		style := sty.Tool.JobIconSuccess
-		if hi.Status != "" {
-			icon = styles.ToolError
-			style = sty.Tool.HookFailed
+	if lifecycle && glyph == "" {
+		// Per-hook completion mark: green check on a completed run,
+		// yellow cross on a run that did not finish normally.
+		if hi.Status == "" {
+			glyph = styles.ToolSuccess
+			glyphStyle = sty.Tool.JobIconSuccess
+		} else {
+			glyph = styles.ToolError
+			glyphStyle = sty.Tool.HookFailed
 		}
-		head = style.SetString(icon).Render() + " " + head
+	}
+	if lifecycle && glyph != "" {
+		head = glyphStyle.SetString(glyph).Render() + " " + head
 	}
 
+	if detail == "" {
+		return head + " " + name + namePad + matcherPart
+	}
 	return fmt.Sprintf(
 		"%s %s%s%s %s %s",
 		head,
@@ -1006,6 +1026,8 @@ func hookDetail(sty *styles.Styles, hi hooks.HookInfo) string {
 		rewroteMessage = "Rewrote Output"
 	)
 	switch {
+	case hi.Status == hooks.StatusRunning:
+		return ""
 	case hi.Status == hooks.StatusTimeout:
 		return sty.Tool.HookFailed.Render(timeoutMessage)
 	case strings.HasPrefix(hi.Status, "exit "):

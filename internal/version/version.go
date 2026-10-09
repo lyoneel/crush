@@ -17,7 +17,8 @@ var (
 	// is based on instead of the auto-bumped build-info pseudo version.
 	Base = ""
 	// BuildNumber is set via -ldflags on fork builds. It counts the
-	// builds of this fork checkout and lands in the version as the
+	// fork builds under the stamped Base release; the counter resets to
+	// 1 when the base changes, and it lands in the version as the
 	// -ly-<N> suffix.
 	BuildNumber = ""
 	// BuildID is a unique identifier for this build. For release builds it

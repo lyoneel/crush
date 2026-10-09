@@ -128,14 +128,14 @@ func sessionSwitched(current, next *session.Session) bool {
 	return current == nil || current.ID != next.ID
 }
 
-// sessionHookStatusMsg reports that SessionSwitch hooks ran, for the
+// sessionHookStatusMsg reports that PreSessionSwitch hooks ran, for the
 // status line.
 type sessionHookStatusMsg struct {
 	event string
 	names []string
 }
 
-// fireSessionSwitchHook returns a command that runs the SessionSwitch
+// fireSessionSwitchHook returns a command that runs the PreSessionSwitch
 // lifecycle hook when the displayed session changes: one call carries
 // the abandoned session and the newly active one, and a first session
 // has no previous side. Decisions are ignored, and the command is nil
@@ -145,7 +145,7 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session) tea.Cmd {
 	if cfg == nil {
 		return nil
 	}
-	eventHooks := cfg.Hooks[hooks.EventSessionSwitch]
+	eventHooks := cfg.Hooks[hooks.EventPreSessionSwitch]
 	if len(eventHooks) == 0 {
 		return nil
 	}
@@ -164,16 +164,16 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session) tea.Cmd {
 		sessionID = next.ID
 	}
 	return func() tea.Msg {
-		result, err := runner.RunLifecycle(context.Background(), hooks.EventSessionSwitch, sessionID,
+		result, err := runner.RunLifecycle(context.Background(), hooks.EventPreSessionSwitch, sessionID,
 			hooks.SessionEventData{Previous: previousPayload, New: nextPayload})
 		if err != nil {
-			return sessionHookStatusMsg{event: hooks.EventSessionSwitch}
+			return sessionHookStatusMsg{event: hooks.EventPreSessionSwitch}
 		}
 		names := make([]string, len(result.Hooks))
 		for i, h := range result.Hooks {
 			names[i] = h.Name
 		}
-		return sessionHookStatusMsg{event: hooks.EventSessionSwitch, names: names}
+		return sessionHookStatusMsg{event: hooks.EventPreSessionSwitch, names: names}
 	}
 }
 

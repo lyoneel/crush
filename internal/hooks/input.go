@@ -36,33 +36,37 @@ type SessionPayload struct {
 // string). The session fields only apply to lifecycle events: a tool
 // event leaves them unset.
 type Payload struct {
-	Event     string          `json:"event"`
-	SessionID string          `json:"session_id"`
-	CWD       string          `json:"cwd"`
-	ToolName  string          `json:"tool_name,omitempty"`
-	ToolInput json.RawMessage `json:"tool_input,omitempty"`
-	Prompt    string          `json:"prompt,omitempty"`
+	Event      string          `json:"event"`
+	SessionID  string          `json:"session_id"`
+	CWD        string          `json:"cwd"`
+	ToolName   string          `json:"tool_name,omitempty"`
+	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
+	ToolOutput string          `json:"tool_output,omitempty"`
+	Prompt     string          `json:"prompt,omitempty"`
+	Response   string          `json:"response,omitempty"`
 
 	// Lifecycle events only. A nil side marshals as null, so a session
 	// switch away from a first session carries previous_session: null.
 	PreviousSession *SessionPayload `json:"previous_session"`
 	NewSession      *SessionPayload `json:"new_session"`
-	// AgentFinished carries the finished session here.
+	// PostResponse carries the finished session here.
 	Session *SessionPayload `json:"session,omitempty"`
 }
 
 // BuildPayload constructs the JSON stdin payload for a hook command.
-func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON string) []byte {
+// toolOutput applies to PostToolUse; other events pass an empty string.
+func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON, toolOutput string) []byte {
 	toolInput := json.RawMessage(toolInputJSON)
 	if !json.Valid(toolInput) {
 		toolInput = json.RawMessage("{}")
 	}
 	p := Payload{
-		Event:     eventName,
-		SessionID: sessionID,
-		CWD:       cwd,
-		ToolName:  toolName,
-		ToolInput: toolInput,
+		Event:      eventName,
+		SessionID:  sessionID,
+		CWD:        cwd,
+		ToolName:   toolName,
+		ToolInput:  toolInput,
+		ToolOutput: toolOutput,
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
@@ -72,14 +76,16 @@ func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON string) []b
 }
 
 // SessionEventData carries the lifecycle-specific payload fields.
-// Previous and New apply to SessionSwitch; Prompt applies to
-// PromptSubmitted; Session applies to SessionStart and
-// AgentFinished.
+// Previous and New apply to PreSessionSwitch; Prompt applies to
+// PreSession, PrePrompt, and PostPrompt; Session applies to PreSession,
+// PrePrompt, PostPrompt, and PostResponse; Response applies to
+// PostResponse.
 type SessionEventData struct {
 	Previous *SessionPayload
 	New      *SessionPayload
 	Session  *SessionPayload
 	Prompt   string
+	Response string
 }
 
 // BuildSessionEventPayload constructs the JSON stdin payload for a
@@ -93,6 +99,7 @@ func BuildSessionEventPayload(eventName, sessionID, cwd string, data SessionEven
 		NewSession:      data.New,
 		Session:         data.Session,
 		Prompt:          data.Prompt,
+		Response:        data.Response,
 	}
 	out, err := json.Marshal(p)
 	if err != nil {

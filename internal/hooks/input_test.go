@@ -7,17 +7,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBuildSessionEventPayload_Switch pins the SessionSwitch payload:
+// TestBuildSessionEventPayload_Switch pins the PreSessionSwitch payload:
 // both sides populated, counts always present, tool fields unset.
 func TestBuildSessionEventPayload_Switch(t *testing.T) {
-	payload := BuildSessionEventPayload(EventSessionSwitch, "sess-2", "/work", SessionEventData{
+	payload := BuildSessionEventPayload(EventPreSessionSwitch, "sess-2", "/work", SessionEventData{
 		Previous: &SessionPayload{ID: "sess-1", Title: "Old", PromptTokens: 10, CompletionTokens: 5, Cost: 0.5, UpdatedAt: 123},
 		New:      &SessionPayload{ID: "sess-2", Title: "New Session"},
 	})
 
 	var p Payload
 	require.NoError(t, json.Unmarshal(payload, &p))
-	require.Equal(t, EventSessionSwitch, p.Event)
+	require.Equal(t, EventPreSessionSwitch, p.Event)
 	require.Equal(t, "sess-2", p.SessionID)
 	require.Equal(t, "/work", p.CWD)
 	require.NotNil(t, p.PreviousSession)
@@ -34,7 +34,7 @@ func TestBuildSessionEventPayload_Switch(t *testing.T) {
 // TestBuildSessionEventPayload_FirstSession pins the first-session
 // switch: the abandoned side marshals as JSON null.
 func TestBuildSessionEventPayload_FirstSession(t *testing.T) {
-	payload := BuildSessionEventPayload(EventSessionSwitch, "sess-1", "/work", SessionEventData{
+	payload := BuildSessionEventPayload(EventPreSessionSwitch, "sess-1", "/work", SessionEventData{
 		New: &SessionPayload{ID: "sess-1"},
 	})
 
@@ -49,24 +49,37 @@ func TestBuildSessionEventPayload_FirstSession(t *testing.T) {
 	require.Nil(t, raw["previous_session"])
 }
 
-// TestBuildSessionEventPayload_PromptSubmitted pins the prompt payload.
-func TestBuildSessionEventPayload_PromptSubmitted(t *testing.T) {
-	payload := BuildSessionEventPayload(EventPromptSubmitted, "sess-1", "/work", SessionEventData{
+// TestBuildSessionEventPayload_PrePrompt pins the prompt payload.
+func TestBuildSessionEventPayload_PrePrompt(t *testing.T) {
+	payload := BuildSessionEventPayload(EventPrePrompt, "sess-1", "/work", SessionEventData{
 		Prompt: "fix the bug",
 	})
 
 	var p Payload
 	require.NoError(t, json.Unmarshal(payload, &p))
-	require.Equal(t, EventPromptSubmitted, p.Event)
+	require.Equal(t, EventPrePrompt, p.Event)
 	require.Equal(t, "fix the bug", p.Prompt)
 	require.Nil(t, p.PreviousSession)
 	require.Nil(t, p.NewSession)
 }
 
+// TestBuildSessionEventPayload_PostResponse pins the response payload:
+// the final assistant text serializes under response.
+func TestBuildSessionEventPayload_PostResponse(t *testing.T) {
+	payload := BuildSessionEventPayload(EventPostResponse, "sess-1", "/work", SessionEventData{
+		Response: "all done",
+	})
+
+	var p Payload
+	require.NoError(t, json.Unmarshal(payload, &p))
+	require.Equal(t, EventPostResponse, p.Event)
+	require.Equal(t, "all done", p.Response)
+}
+
 // TestBuildLifecycleEnv pins the lifecycle env vars, including the
 // empty-variable shape when a side is absent.
 func TestBuildLifecycleEnv(t *testing.T) {
-	env := BuildEnv(EventSessionSwitch, "", "sess-2", "/work", "/project", "", "sess-1", "sess-2")
+	env := BuildEnv(EventPreSessionSwitch, "", "sess-2", "/work", "/project", "", "sess-1", "sess-2")
 	joined := ""
 	for i, v := range env {
 		if i > 0 {
@@ -74,11 +87,11 @@ func TestBuildLifecycleEnv(t *testing.T) {
 		}
 		joined += v
 	}
-	require.Contains(t, joined, "CRUSH_EVENT=SessionSwitch")
+	require.Contains(t, joined, "CRUSH_EVENT=PreSessionSwitch")
 	require.Contains(t, joined, "CRUSH_PREVIOUS_SESSION_ID=sess-1")
 	require.Contains(t, joined, "CRUSH_NEW_SESSION_ID=sess-2")
 
-	absent := BuildEnv(EventAgentFinished, "", "sess-1", "/work", "/project", "", "", "")
+	absent := BuildEnv(EventPostResponse, "", "sess-1", "/work", "/project", "", "", "")
 	joined = ""
 	for i, v := range absent {
 		if i > 0 {

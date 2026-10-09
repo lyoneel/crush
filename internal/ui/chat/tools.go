@@ -891,21 +891,40 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 		return ""
 	}
 	var meta struct {
-		Hook *hooks.HookMetadata `json:"hook"`
+		Hook     *hooks.HookMetadata `json:"hook"`
+		PostHook *hooks.HookMetadata `json:"post_hook"`
 	}
-	if err := json.Unmarshal([]byte(metadata), &meta); err != nil || meta.Hook == nil {
+	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
 		return ""
 	}
-	h := meta.Hook
-	if len(h.Hooks) == 0 {
+	pre := renderHookSection(sty, meta.Hook, width)
+	post := renderHookSection(sty, meta.PostHook, width)
+	switch {
+	case pre == "" && post == "":
+		return ""
+	case pre == "":
+		return post
+	case post == "":
+		return pre
+	default:
+		return pre + "\n\n" + post
+	}
+}
+
+// renderHookSection renders one hook metadata block (the PreToolUse hook
+// key or the PostToolUse post_hook key) as aligned indicator lines.
+func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) string {
+	if h == nil || len(h.Hooks) == 0 {
 		return ""
 	}
 
-	// Events with a bracket tag (PreToolUse) render the label as
-	// "Hook [tag]" instead of the plain "Hook".
+	// Events with a bracket tag (PreToolUse) append the tag after the
+	// plain "Hook" label. The label and the tag keep separate styles:
+	// the label is green, the tag is gray.
 	label := "Hook"
-	if tag, ok := lifecycleTag[h.Event]; ok {
-		label = "Hook " + tag
+	tag := ""
+	if t, ok := lifecycleTag[h.Event]; ok {
+		tag = t
 	}
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
@@ -944,6 +963,9 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 	//   label + " " + name(padded) + [" " + matcher(padded)] + " → " + detail
 	if width > 0 {
 		fixed := lipgloss.Width(sty.Tool.HookLabel.Render(label)) + 1
+		if tag != "" {
+			fixed += lipgloss.Width(sty.Tool.HookTag.Render(tag)) + 1
+		}
 		if maxMatcherWidth > 0 {
 			fixed += 1 + maxMatcherWidth
 		}
@@ -957,7 +979,7 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, label, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, tag, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -994,8 +1016,9 @@ func isLikelyPath(s string) bool {
 }
 
 // renderHookLine renders a single hook indicator line with aligned columns.
-// label is the plain-text label column (e.g. "Hook" or "Hook [PT]").
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// label is the plain-text label column ("Hook") and tag the bracket tag
+// (for example "[PreTU]"); the tag may be empty.
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -1010,16 +1033,22 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, rawName, detai
 		}
 	}
 
-	arrowStyle := sty.Tool.HookArrow
 	labelStyle := sty.Tool.HookLabel
+	tagStyle := sty.Tool.HookTag
+	arrowStyle := sty.Tool.HookArrow
 	if hi.Decision == "deny" {
 		labelStyle = sty.Tool.HookDeniedLabel
+		tagStyle = sty.Tool.HookDeniedLabel
 		arrowStyle = sty.Tool.HookDeniedLabel
+	}
+	head := labelStyle.Render(label)
+	if tag != "" {
+		head += " " + tagStyle.Render(tag)
 	}
 
 	return fmt.Sprintf(
 		"%s %s%s%s %s %s",
-		labelStyle.Render(label),
+		head,
 		name,
 		namePad,
 		matcherPart,

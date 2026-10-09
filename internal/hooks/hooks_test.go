@@ -216,12 +216,22 @@ func splitFirst(s, sep string) []string {
 
 func TestBuildPayload(t *testing.T) {
 	t.Parallel()
-	payload := BuildPayload(EventPreToolUse, "sess-1", "/work", "bash", `{"command":"ls"}`)
+	payload := BuildPayload(EventPreToolUse, "sess-1", "/work", "bash", `{"command":"ls"}`, "")
 	s := string(payload)
 	require.Contains(t, s, `"event":"`+EventPreToolUse+`"`)
 	require.Contains(t, s, `"tool_name":"bash"`)
 	// tool_input should be an object, not a string.
 	require.Contains(t, s, `"tool_input":{"command":"ls"}`)
+	// Tool events other than PostToolUse leave tool_output unset.
+	require.NotContains(t, s, "tool_output")
+}
+
+func TestBuildPayloadPostToolUse(t *testing.T) {
+	t.Parallel()
+	payload := BuildPayload(EventPostToolUse, "sess-1", "/work", "bash", `{"command":"ls"}`, "exit 0")
+	s := string(payload)
+	require.Contains(t, s, `"event":"`+EventPostToolUse+`"`)
+	require.Contains(t, s, `"tool_output":"exit 0"`)
 }
 
 func TestRunnerExitCode0Allow(t *testing.T) {
@@ -230,7 +240,7 @@ func TestRunnerExitCode0Allow(t *testing.T) {
 		Command: `echo '{"decision":"allow","context":"ok"}'`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionAllow, result.Decision)
 	require.Equal(t, "ok", result.Context)
@@ -242,7 +252,7 @@ func TestRunnerExitCode2Deny(t *testing.T) {
 		Command: `echo "forbidden" >&2; exit 2`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionDeny, result.Decision)
 	require.False(t, result.Halt)
@@ -255,7 +265,7 @@ func TestRunnerExitCode49Halt(t *testing.T) {
 		Command: `echo "stop the turn" >&2; exit 49`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.True(t, result.Halt)
 	require.Equal(t, DecisionDeny, result.Decision)
@@ -268,7 +278,7 @@ func TestRunnerHaltViaJSON(t *testing.T) {
 		Command: `echo '{"halt":true,"reason":"via json"}'`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.True(t, result.Halt)
 	require.Equal(t, "via json", result.Reason)
@@ -280,9 +290,69 @@ func TestRunnerExitCodeOtherNonBlocking(t *testing.T) {
 		Command: `exit 1`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionNone, result.Decision)
+}
+
+// TestRunnerExitCodeStatus pins that a hook failing with a non-blocking
+// exit code records that exit code in the per-hook status, so the UI
+// renders it instead of OK.
+func TestRunnerExitCodeStatus(t *testing.T) {
+	t.Parallel()
+	hookCfg := config.HookConfig{
+		Command: `exit 5`,
+	}
+	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
+	require.NoError(t, err)
+	require.Equal(t, DecisionNone, result.Decision)
+	require.Len(t, result.Hooks, 1)
+	require.Equal(t, "exit 5", result.Hooks[0].Status)
+}
+
+// TestRunnerLifecycleExitCodeStatus pins the same status recording on
+// the lifecycle path.
+func TestRunnerLifecycleExitCodeStatus(t *testing.T) {
+	t.Parallel()
+	hookCfg := config.HookConfig{
+		Command: `exit 7`,
+	}
+	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
+	result, err := r.RunLifecycle(context.Background(), EventPrePrompt, "sess", SessionEventData{})
+	require.NoError(t, err)
+	require.Len(t, result.Hooks, 1)
+	require.Equal(t, "exit 7", result.Hooks[0].Status)
+}
+
+// TestRunnerTimeoutStatus pins that a timed-out hook run records the
+// timeout status instead of silently rendering OK.
+func TestRunnerTimeoutStatus(t *testing.T) {
+	t.Parallel()
+	hookCfg := config.HookConfig{
+		Command: `sleep 10`,
+		Timeout: 1,
+	}
+	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
+	require.NoError(t, err)
+	require.Equal(t, DecisionNone, result.Decision)
+	require.Len(t, result.Hooks, 1)
+	require.Equal(t, StatusTimeout, result.Hooks[0].Status)
+}
+
+// TestRunnerSuccessHasNoStatus pins that a normally completing hook
+// run carries no failure status, so the UI keeps rendering OK.
+func TestRunnerSuccessHasNoStatus(t *testing.T) {
+	t.Parallel()
+	hookCfg := config.HookConfig{
+		Command: `exit 0`,
+	}
+	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
+	require.NoError(t, err)
+	require.Len(t, result.Hooks, 1)
+	require.Empty(t, result.Hooks[0].Status)
 }
 
 func TestRunnerTimeout(t *testing.T) {
@@ -293,7 +363,7 @@ func TestRunnerTimeout(t *testing.T) {
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
 	start := time.Now()
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	elapsed := time.Since(start)
 	require.NoError(t, err)
 	require.Equal(t, DecisionNone, result.Decision)
@@ -307,7 +377,7 @@ func TestRunnerDeduplication(t *testing.T) {
 		Command: `echo '{"decision":"allow"}'`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg, hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionAllow, result.Decision)
 }
@@ -316,7 +386,7 @@ func TestRunnerNoMatchingHooks(t *testing.T) {
 	t.Parallel()
 	// Hooks are empty.
 	r := NewRunner(nil, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionNone, result.Decision)
 }
@@ -343,7 +413,7 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 			{Command: `echo '{"decision":"deny","reason":"blocked"}'`, Matcher: "^bash$"},
 		})
 		r := NewRunner(hooks, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionDeny, result.Decision)
 	})
@@ -354,7 +424,7 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 			{Command: `echo '{"decision":"deny","reason":"blocked"}'`, Matcher: "^edit$"},
 		})
 		r := NewRunner(hooks, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionNone, result.Decision)
 	})
@@ -365,7 +435,7 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 			{Command: `echo '{"decision":"allow"}'`},
 		})
 		r := NewRunner(hooks, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionAllow, result.Decision)
 	})
@@ -377,11 +447,11 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 		})
 		r := NewRunner(hooks, t.TempDir(), t.TempDir())
 
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "mcp_github_get_me", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "mcp_github_get_me", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionDeny, result.Decision)
 
-		result, err = r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err = r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionNone, result.Decision)
 	})
@@ -396,11 +466,11 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 		}
 		r := NewRunner(raw, t.TempDir(), t.TempDir())
 
-		deny, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		deny, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionDeny, deny.Decision)
 
-		noop, err := r.Run(context.Background(), EventPreToolUse, "sess", "view", `{}`)
+		noop, err := r.Run(context.Background(), EventPreToolUse, "sess", "view", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionNone, noop.Decision)
 	})
@@ -414,7 +484,7 @@ func TestRunnerMatcherFiltering(t *testing.T) {
 		}
 		r := NewRunner(raw, t.TempDir(), t.TempDir())
 
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionNone, result.Decision)
 		require.Empty(t, r.Hooks())
@@ -488,7 +558,7 @@ func TestRunnerHookNameUsesDisplayName(t *testing.T) {
 			Command: `echo '{"decision":"allow"}'`,
 		}
 		r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionAllow, result.Decision)
 		require.Len(t, result.Hooks, 1)
@@ -501,7 +571,7 @@ func TestRunnerHookNameUsesDisplayName(t *testing.T) {
 			Command: `echo '{"decision":"allow"}'`,
 		}
 		r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Equal(t, DecisionAllow, result.Decision)
 		require.Len(t, result.Hooks, 1)
@@ -516,7 +586,7 @@ func TestRunnerHookNameUsesDisplayName(t *testing.T) {
 			Command: hookPath,
 		}
 		r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 		require.NoError(t, err)
 		require.Len(t, result.Hooks, 1)
 		require.Equal(t, "rtk-rewrite.sh", result.Hooks[0].Name)
@@ -531,7 +601,7 @@ func TestRunnerParallelExecution(t *testing.T) {
 		{Command: `echo '{"decision":"deny","reason":"nope"}' ; exit 0`},
 	}
 	r := NewRunner(hooks, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionDeny, result.Decision)
 	require.Equal(t, "nope", result.Reason)
@@ -543,7 +613,7 @@ func TestRunnerEnvVarsPropagated(t *testing.T) {
 		Command: `printf '{"decision":"allow","context":"%s"}' "$CRUSH_TOOL_NAME"`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionAllow, result.Decision)
 	require.Equal(t, "bash", result.Context)
@@ -717,7 +787,7 @@ func TestRunnerAbandonRaceSafety(t *testing.T) {
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
 
 	start := time.Now()
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`, "")
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)
@@ -742,7 +812,7 @@ func TestRunnerUpdatedInput(t *testing.T) {
 		Command: `echo '{"decision":"allow","updated_input":{"command":"echo rewritten"}}'`,
 	}
 	r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
-	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{"command":"echo original","timeout":60}`)
+	result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{"command":"echo original","timeout":60}`, "")
 	require.NoError(t, err)
 	require.Equal(t, DecisionAllow, result.Decision)
 	require.JSONEq(
@@ -787,5 +857,36 @@ func TestParseStdoutClaudeCodeFormat(t *testing.T) {
 		r := parseStdout(`{"decision":"allow","context":"hello"}`)
 		require.Equal(t, DecisionAllow, r.Decision)
 		require.Equal(t, "hello", r.Context)
+	})
+}
+
+func TestAllAsync(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty slice is not async", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, AllAsync(nil))
+		require.False(t, AllAsync([]config.HookConfig{}))
+	})
+
+	t.Run("one async hook is async", func(t *testing.T) {
+		t.Parallel()
+		require.True(t, AllAsync([]config.HookConfig{{Async: true}}))
+	})
+
+	t.Run("mixed hooks are not async", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, AllAsync([]config.HookConfig{
+			{Async: true},
+			{Name: "sync"},
+		}))
+	})
+
+	t.Run("all async hooks are async", func(t *testing.T) {
+		t.Parallel()
+		require.True(t, AllAsync([]config.HookConfig{
+			{Async: true},
+			{Async: true},
+		}))
 	})
 }

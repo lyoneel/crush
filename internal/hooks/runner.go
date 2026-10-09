@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -86,8 +87,9 @@ func (r *Runner) Hooks() []config.HookConfig {
 }
 
 // Run executes all matching hooks for the given event and tool, returning
-// an aggregated result.
-func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolInputJSON string) (AggregateResult, error) {
+// an aggregated result. toolOutput carries the tool result text for
+// PostToolUse; other events pass an empty string.
+func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolInputJSON, toolOutput string) (AggregateResult, error) {
 	matching := r.matchingHooks(toolName)
 	if len(matching) == 0 {
 		return AggregateResult{Decision: DecisionNone}, nil
@@ -105,7 +107,7 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 	}
 
 	envVars := BuildEnv(eventName, toolName, sessionID, r.cwd, r.projectDir, toolInputJSON, "", "")
-	payload := BuildPayload(eventName, sessionID, r.cwd, toolName, toolInputJSON)
+	payload := BuildPayload(eventName, sessionID, r.cwd, toolName, toolInputJSON, toolOutput)
 
 	results := make([]HookResult, len(deduped))
 	var wg sync.WaitGroup
@@ -126,6 +128,7 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 			Name:         h.DisplayName(),
 			Matcher:      h.Matcher,
 			Decision:     results[i].Decision.String(),
+			Status:       results[i].Status,
 			Halt:         results[i].Halt,
 			Reason:       results[i].Reason,
 			InputRewrite: results[i].UpdatedInput != "",
@@ -142,8 +145,8 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 }
 
 // RunLifecycle executes all hooks configured for a lifecycle event
-// (SessionStart, SessionSwitch, PromptSubmitted,
-// AgentFinished). Lifecycle
+// (PreSession, PreSessionSwitch, PrePrompt, PostPrompt,
+// PostResponse). Lifecycle
 // hooks have no tool name, so only hooks without a matcher match; results
 // are aggregated but callers treat the events as informational.
 func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, data SessionEventData) (AggregateResult, error) {
@@ -191,6 +194,7 @@ func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, 
 			Name:     h.DisplayName(),
 			Matcher:  h.Matcher,
 			Decision: results[i].Decision.String(),
+			Status:   results[i].Status,
 			Halt:     results[i].Halt,
 			Reason:   results[i].Reason,
 		}
@@ -285,7 +289,7 @@ func (r *Runner) runOne(parentCtx context.Context, hook config.HookConfig, envVa
 			)
 			// The goroutine may still be writing to stdout/stderr; do
 			// not read either buffer below this point.
-			return HookResult{Decision: DecisionNone}
+			return HookResult{Decision: DecisionNone, Status: StatusTimeout}
 		}
 	}
 
@@ -296,7 +300,7 @@ func (r *Runner) runOne(parentCtx context.Context, hook config.HookConfig, envVa
 		} else {
 			slog.Warn("Hook timed out", "command", hook.Command, "timeout", timeout)
 		}
-		return HookResult{Decision: DecisionNone}
+		return HookResult{Decision: DecisionNone, Status: StatusTimeout}
 	}
 
 	if err != nil {
@@ -332,7 +336,7 @@ func (r *Runner) runOne(parentCtx context.Context, hook config.HookConfig, envVa
 				"stderr", strings.TrimSpace(stderr.String()),
 				"error", err,
 			)
-			return HookResult{Decision: DecisionNone}
+			return HookResult{Decision: DecisionNone, Status: fmt.Sprintf("exit %d", exitCode)}
 		}
 	}
 

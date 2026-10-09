@@ -7,17 +7,34 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/tidwall/sjson"
 )
 
 // Hook event name constants.
 const (
-	EventPreToolUse      = "PreToolUse"
-	EventSessionStart    = "SessionStart"
-	EventSessionSwitch   = "SessionSwitch"
-	EventPromptSubmitted = "PromptSubmitted"
-	EventAgentFinished   = "AgentFinished"
+	EventPreToolUse       = "PreToolUse"
+	EventPostToolUse      = "PostToolUse"
+	EventPreSession       = "PreSession"
+	EventPreSessionSwitch = "PreSessionSwitch"
+	EventPrePrompt        = "PrePrompt"
+	EventPostPrompt       = "PostPrompt"
+	EventPostResponse     = "PostResponse"
 )
+
+// AllAsync reports whether every hook in the slice opts into
+// fire-and-forget execution. An empty slice is not async.
+func AllAsync(hooks []config.HookConfig) bool {
+	if len(hooks) == 0 {
+		return false
+	}
+	for _, h := range hooks {
+		if !h.Async {
+			return false
+		}
+	}
+	return true
+}
 
 // HaltExitCode is the exit code that halts the whole turn. 2 blocks the
 // current tool call; 49 sits in the no-man's-land between the
@@ -42,6 +59,7 @@ type HookInfo struct {
 	Name         string `json:"name"`
 	Matcher      string `json:"matcher,omitempty"`
 	Decision     string `json:"decision"`
+	Status       string `json:"status,omitempty"`
 	Halt         bool   `json:"halt,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	InputRewrite bool   `json:"input_rewrite,omitempty"`
@@ -73,11 +91,16 @@ func (d Decision) String() string {
 // HookResult holds the parsed output of a single hook execution.
 type HookResult struct {
 	Decision     Decision
+	Status       string // Execution status: empty on success, "timeout", or "exit <N>" on failure.
 	Halt         bool   // If true, halt the whole turn.
 	Reason       string // Deny or halt reason (same field, different audience).
 	Context      string
 	UpdatedInput string // Shallow-merge patch against tool_input (opaque JSON).
 }
+
+// StatusTimeout marks a hook run that exceeded its timeout. A failed
+// hook run carries the status "exit <N>" with the process exit code.
+const StatusTimeout = "timeout"
 
 // AggregateResult holds the combined outcome of all hooks for an event.
 type AggregateResult struct {

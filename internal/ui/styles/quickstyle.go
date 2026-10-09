@@ -825,6 +825,7 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Tool.HookArrow = base.Foreground(o.successMoreSubtle)
 	s.Tool.HookDetail = base.Foreground(o.fgMoreSubtle)
 	s.Tool.HookOK = base.Foreground(o.successMostSubtle)
+	s.Tool.HookFailed = base.Foreground(o.warning)
 	s.Tool.HookDenied = base.Foreground(o.error)
 	s.Tool.HookDeniedLabel = base.Foreground(o.destructive)
 	s.Tool.HookDeniedReason = base.Foreground(o.bgMostVisible)

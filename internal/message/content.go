@@ -133,6 +133,7 @@ type HookRun struct {
 	Event    string `json:"event"`
 	Name     string `json:"name"`
 	Decision string `json:"decision"`
+	Status   string `json:"status,omitempty"`
 }
 
 // HookContent is a transcript annotation for lifecycle hook runs

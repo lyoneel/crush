@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
@@ -157,4 +158,37 @@ func TestHookLabelAndTagDistinctColors(t *testing.T) {
 	require.Contains(t, out, tagStyled, "bracket tag keeps its own style")
 	require.NotEqual(t, sty.Tool.HookLabel, sty.Tool.HookTag,
 		"label and tag styles must differ")
+}
+
+// TestHookFailureStatuses pins that a hook run which did not complete
+// renders its execution status instead of OK: Timeout for a timed-out
+// run and the exit code for any other failure, both in the yellow
+// failure style.
+func TestHookFailureStatuses(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	tests := []struct {
+		name     string
+		status   string
+		expected string
+	}{
+		{"timeout", hooks.StatusTimeout, "Timeout"},
+		{"exit code", "exit 5", "exit 5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			item := NewHookItem(&sty, message.HookContent{
+				Event: "PrePrompt",
+				Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: tt.status}},
+			})
+			raw := item.RawRender(100)
+			out := ansi.Strip(raw)
+			require.Contains(t, out, tt.expected)
+			require.NotContains(t, out, "OK")
+			require.Contains(t, raw, sty.Tool.HookFailed.Render(tt.expected))
+		})
+	}
 }

@@ -22,7 +22,7 @@ func (b *Backend) CreateSession(ctx context.Context, workspaceID, title string) 
 	if err != nil {
 		return session.Session{}, err
 	}
-	agent.FireNewSession(ws.Cfg, ws.Sessions, ws.Messages, sess)
+	agent.FireSessionNew(ws.Cfg, ws.Sessions, ws.Messages, sess)
 	return sess, nil
 }
 

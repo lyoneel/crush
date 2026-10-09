@@ -50,7 +50,7 @@ func (w *AppWorkspace) CreateSession(ctx context.Context, title string) (session
 	if err != nil {
 		return session.Session{}, err
 	}
-	agent.FireNewSession(w.store, w.app.Sessions, w.app.Messages, sess)
+	agent.FireSessionNew(w.store, w.app.Sessions, w.app.Messages, sess)
 	return sess, nil
 }
 

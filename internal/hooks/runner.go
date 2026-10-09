@@ -142,7 +142,7 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 }
 
 // RunLifecycle executes all hooks configured for a lifecycle event
-// (NewSession, SessionStart, SessionSwitch, PromptSubmitted,
+// (SessionNew, SessionStart, SessionSwitch, PromptSubmitted,
 // AgentFinished). Lifecycle
 // hooks have no tool name, so only hooks without a matcher match; results
 // are aggregated but callers treat the events as informational.

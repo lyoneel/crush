@@ -134,7 +134,7 @@ func TestFireSessionStartSkipsAfterFirstPrompt(t *testing.T) {
 }
 
 // TestFireSessionStartIgnoresHookOnlyMessages pins the gate refinement:
-// hook-only transcript messages (such as the NewSession record written at
+// hook-only transcript messages (such as the SessionNew record written at
 // creation) do not count as the session having been used, so SessionStart
 // still fires on the first prompt.
 func TestFireSessionStartIgnoresHookOnlyMessages(t *testing.T) {
@@ -144,7 +144,7 @@ func TestFireSessionStartIgnoresHookOnlyMessages(t *testing.T) {
 
 	_, err = c.messages.Create(t.Context(), sess.ID, message.CreateMessageParams{
 		Role:  message.User,
-		Parts: []message.ContentPart{message.HookContent{Event: hooks.EventNewSession, Hooks: []message.HookRun{{Event: hooks.EventNewSession, Name: "h"}}}},
+		Parts: []message.ContentPart{message.HookContent{Event: hooks.EventSessionNew, Hooks: []message.HookRun{{Event: hooks.EventSessionNew, Name: "h"}}}},
 	})
 	require.NoError(t, err)
 
@@ -155,22 +155,22 @@ func TestFireSessionStartIgnoresHookOnlyMessages(t *testing.T) {
 	require.Contains(t, string(data), `"event":"SessionStart"`)
 }
 
-// TestFireNewSessionRecords pins the NewSession fire: a configured hook
+// TestFireSessionNewRecords pins the SessionNew fire: a configured hook
 // receives the payload and the run is recorded as a HookContent message in
 // the fresh session's transcript.
-func TestFireNewSessionRecords(t *testing.T) {
+func TestFireSessionNewRecords(t *testing.T) {
 	env := testEnv(t)
 	logFile := filepath.Join(env.workingDir, "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventNewSession: {{Command: "cat >> " + logFile}},
+		hooks.EventSessionNew: {{Command: "cat >> " + logFile}},
 	}
 
 	sess, err := env.sessions.Create(t.Context(), "Fresh Session")
 	require.NoError(t, err)
 
-	FireNewSession(cfg, env.sessions, env.messages, sess)
+	FireSessionNew(cfg, env.sessions, env.messages, sess)
 
 	require.Eventually(t, func() bool {
 		data, err := os.ReadFile(logFile)
@@ -178,7 +178,7 @@ func TestFireNewSessionRecords(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"event":"NewSession"`)
+	require.Contains(t, string(data), `"event":"SessionNew"`)
 
 	msgs, err := env.messages.List(t.Context(), sess.ID)
 	require.NoError(t, err)
@@ -190,13 +190,13 @@ func TestFireNewSessionRecords(t *testing.T) {
 			}
 		}
 	}
-	require.NotNil(t, hook, "the NewSession run must be recorded as a HookContent message")
-	require.Equal(t, hooks.EventNewSession, hook.Event)
+	require.NotNil(t, hook, "the SessionNew run must be recorded as a HookContent message")
+	require.Equal(t, hooks.EventSessionNew, hook.Event)
 }
 
-// TestFireNewSessionNoHooksIsNoOp pins that with no configured hooks the
+// TestFireSessionNewNoHooksIsNoOp pins that with no configured hooks the
 // fire does nothing and writes no transcript message.
-func TestFireNewSessionNoHooksIsNoOp(t *testing.T) {
+func TestFireSessionNewNoHooksIsNoOp(t *testing.T) {
 	env := testEnv(t)
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestFireNewSessionNoHooksIsNoOp(t *testing.T) {
 	sess, err := env.sessions.Create(t.Context(), "Fresh Session")
 	require.NoError(t, err)
 
-	FireNewSession(cfg, env.sessions, env.messages, sess)
+	FireSessionNew(cfg, env.sessions, env.messages, sess)
 
 	msgs, err := env.messages.List(t.Context(), sess.ID)
 	require.NoError(t, err)

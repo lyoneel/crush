@@ -21,8 +21,9 @@ var hookSeq atomic.Int64
 // event name on lifecycle hook lines. The head must stay within the
 // width budget of the body layout rendered by toolOutputHookIndicator.
 var lifecycleTag = map[string]string{
+	"PreToolUse":      "[PT]",
 	"SessionSwitch":   "[SS]",
-	"NewSession":      "[NS]",
+	"SessionNew":      "[SN]",
 	"SessionStart":    "[ST]",
 	"PromptSubmitted": "[PS]",
 	"AgentFinished":   "[AF]",

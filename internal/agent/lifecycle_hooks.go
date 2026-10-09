@@ -75,13 +75,13 @@ func fireRecordedLifecycleHook(messages message.Service, runner *hooks.Runner, e
 	go runAndRecordLifecycleHook(context.Background(), messages, runner, eventName, sessionID, data)
 }
 
-// FireNewSession fires the NewSession lifecycle hook for a freshly created
+// FireSessionNew fires the SessionNew lifecycle hook for a freshly created
 // session, asynchronously and with a transcript record. It is exported so
 // both creation paths (server-mode backend and local app workspace) can
 // share the fire; it is a no-op when no hooks are configured or the
 // services are nil.
-func FireNewSession(cfg *config.ConfigStore, sessions session.Service, messages message.Service, sess session.Session) {
-	runner := lifecycleRunnerFromStore(cfg, hooks.EventNewSession)
+func FireSessionNew(cfg *config.ConfigStore, sessions session.Service, messages message.Service, sess session.Session) {
+	runner := lifecycleRunnerFromStore(cfg, hooks.EventSessionNew)
 	if runner == nil || messages == nil {
 		return
 	}
@@ -92,7 +92,7 @@ func FireNewSession(cfg *config.ConfigStore, sessions session.Service, messages 
 		}
 	}
 	data.Session = sessionPayload(sess)
-	fireRecordedLifecycleHook(messages, runner, hooks.EventNewSession, sess.ID, data)
+	fireRecordedLifecycleHook(messages, runner, hooks.EventSessionNew, sess.ID, data)
 }
 
 // sessionPayload converts a session snapshot into the hook payload form.

@@ -102,6 +102,7 @@ func (h *hookedTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.To
 // buildHookMetadata creates a HookMetadata from an AggregateResult.
 func buildHookMetadata(result hooks.AggregateResult) hooks.HookMetadata {
 	return hooks.HookMetadata{
+		Event:        hooks.EventPreToolUse,
 		HookCount:    result.HookCount,
 		Decision:     result.Decision.String(),
 		Halt:         result.Halt,

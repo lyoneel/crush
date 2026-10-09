@@ -24,7 +24,8 @@ func TestHookItemRendersLifecycleTag(t *testing.T) {
 		tag   string
 	}{
 		{"SessionSwitch", "[SS]"},
-		{"SessionStart", "[NS]"},
+		{"NewSession", "[NS]"},
+		{"SessionStart", "[ST]"},
 		{"PromptSubmitted", "[PS]"},
 		{"AgentFinished", "[AF]"},
 	}

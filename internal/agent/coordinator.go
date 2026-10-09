@@ -309,25 +309,29 @@ const sessionStartTimeout = 30 * time.Second
 
 // fireSessionStart fires the SessionStart lifecycle hook on the first
 // prompt of a session, before PromptSubmitted runs for the same prompt.
-// The gate is the session row's MessageCount: a fresh session has zero
-// messages, so exactly the first prompt fires the event. A missing or
-// unreadable session row falls back to firing (first-prompt assumption)
-// and logs at debug. The fire is synchronous under a bounded context so
-// the SessionStart line executes, and records in the transcript, before
-// the PromptSubmitted line of the same prompt.
+// The gate is "no user text message exists yet": hook-only transcript
+// messages (for example the NewSession record written at creation) must
+// not count as the session having been used. A missing or unreadable
+// message list falls back to firing (first-prompt assumption) and logs
+// at debug. The fire is synchronous under a bounded context so the
+// SessionStart line executes, and records in the transcript, before the
+// PromptSubmitted line of the same prompt.
 func (c *coordinator) fireSessionStart(ctx context.Context, sessionID string) {
 	runner := lifecycleRunnerFromStore(c.cfg, hooks.EventSessionStart)
 	if runner == nil {
 		return
 	}
-	var data hooks.SessionEventData
-	sess, err := c.sessions.Get(ctx, sessionID)
+	msgs, err := c.messages.List(ctx, sessionID)
 	switch {
-	case err == nil && sess.MessageCount > 0:
+	case err == nil && hasUserTextMessage(msgs):
 		return
-	case err == nil:
+	case err != nil:
+		slog.Debug("SessionStart gate: message list failed; firing anyway", "session_id", sessionID, "error", err)
+	}
+	var data hooks.SessionEventData
+	if sess, err := c.sessions.Get(ctx, sessionID); err == nil {
 		data.Session = sessionPayload(sess)
-	default:
+	} else {
 		slog.Debug("SessionStart gate: session lookup failed; firing anyway", "session_id", sessionID, "error", err)
 	}
 	fireCtx, cancel := context.WithTimeout(ctx, sessionStartTimeout)

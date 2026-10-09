@@ -942,6 +942,16 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 			glyphStyle = sty.Tool.IconPending
 		}
 	}
+	// Inline tool indicator lines have no glyph, but they indent by the
+	// glyph's two cells so every "Hook" label starts in the same column
+	// across transcript and tool result blocks.
+	prefix := ""
+	if !lifecycle {
+		prefix = "  "
+		if width > 0 {
+			width -= 2
+		}
+	}
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
 	// for the name, matcher, and detail columns so they align. The name
@@ -1005,7 +1015,7 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, glyph, glyphStyle, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, prefix+renderHookLine(sty, hi, label, tag, lifecycle, glyph, glyphStyle, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }

@@ -299,21 +299,17 @@ func (c *coordinator) RunAccepted(ctx context.Context, accept *AcceptedRun, sess
 	return c.run(ctx, accept, sessionID, prompt, attachments...)
 }
 
-// sessionStartTimeout bounds the synchronous SessionStart fire so a slow
-// hook script cannot stall the first turn indefinitely.
-const sessionStartTimeout = 30 * time.Second
-
-// fireSessionStart fires the SessionStart lifecycle hook on the first
-// prompt of a session, before PromptSubmitted runs for the same prompt.
+// firePreSession fires the PreSession lifecycle hook on the first
+// prompt of a session, before PrePrompt runs for the same prompt.
 // The gate is "no user text message exists yet": hook-only transcript
-// messages (for example a PromptSubmitted record) must
+// messages (for example a PrePrompt record) must
 // not count as the session having been used. A missing or unreadable
 // message list falls back to firing (first-prompt assumption) and logs
 // at debug. The fire is synchronous under a bounded context so the
-// SessionStart line executes, and records in the transcript, before the
-// PromptSubmitted line of the same prompt.
-func (c *coordinator) fireSessionStart(ctx context.Context, sessionID string) {
-	runner := lifecycleRunnerFromStore(c.cfg, hooks.EventSessionStart)
+// PreSession line executes, and records in the transcript, before the
+// PrePrompt line of the same prompt.
+func (c *coordinator) firePreSession(ctx context.Context, sessionID, prompt string) {
+	runner := lifecycleRunnerFromStore(c.cfg, hooks.EventPreSession)
 	if runner == nil {
 		return
 	}
@@ -322,17 +318,18 @@ func (c *coordinator) fireSessionStart(ctx context.Context, sessionID string) {
 	case err == nil && hasUserTextMessage(msgs):
 		return
 	case err != nil:
-		slog.Debug("SessionStart gate: message list failed; firing anyway", "session_id", sessionID, "error", err)
+		slog.Debug("PreSession gate: message list failed; firing anyway", "session_id", sessionID, "error", err)
 	}
 	var data hooks.SessionEventData
 	if sess, err := c.sessions.Get(ctx, sessionID); err == nil {
 		data.Session = sessionPayload(sess)
 	} else {
-		slog.Debug("SessionStart gate: session lookup failed; firing anyway", "session_id", sessionID, "error", err)
+		slog.Debug("PreSession gate: session lookup failed; firing anyway", "session_id", sessionID, "error", err)
 	}
-	fireCtx, cancel := context.WithTimeout(ctx, sessionStartTimeout)
+	data.Prompt = prompt
+	fireCtx, cancel := context.WithTimeout(ctx, lifecycleHookTimeout)
 	defer cancel()
-	runAndRecordLifecycleHook(fireCtx, c.messages, runner, hooks.EventSessionStart, sessionID, data)
+	runAndRecordLifecycleHook(fireCtx, c.messages, runner, hooks.EventPreSession, sessionID, data)
 }
 
 // run is the shared implementation behind Run and RunAccepted. When
@@ -345,16 +342,15 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 		return nil, err
 	}
 
-	// Fork: fire the SessionStart lifecycle hook on the first prompt of a
-	// session, synchronously and before PromptSubmitted, so the transcript
-	// shows Hook [ST] above Hook [PS].
-	c.fireSessionStart(ctx, sessionID)
+	// Fork: fire the PreSession lifecycle hook on the first prompt of a
+	// session, synchronously and before PrePrompt, so the transcript
+	// shows Hook [PreSE] above Hook [PrePR].
+	c.firePreSession(ctx, sessionID, prompt)
 
-	// Fork: fire the PromptSubmitted lifecycle hook before the turn
-	// dispatches; asynchronous and informational, recorded in the
-	// transcript so the chat shows the run next to the prompt.
-	fireRecordedLifecycleHook(c.messages, lifecycleRunnerFromStore(c.cfg, hooks.EventPromptSubmitted),
-		hooks.EventPromptSubmitted, sessionID,
+	// Fork: fire the PrePrompt lifecycle hook before the turn
+	// dispatches; synchronous by default, recorded in the transcript so
+	// the chat shows the run next to the prompt.
+	fireLifecycleHookDefault(c.messages, c.cfg, hooks.EventPrePrompt, sessionID,
 		hooks.SessionEventData{Prompt: prompt})
 
 	// MCP servers connect asynchronously (see mcp.Initialize).
@@ -918,10 +914,14 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 
 	logFile := filepath.Join(c.cfg.Config().Options.DataDirectory, "logs", "crush.log")
 
-	// Build hook runner if PreToolUse hooks are configured.
+	// Build hook runners if PreToolUse or PostToolUse hooks are configured.
 	var hookRunner *hooks.Runner
 	if preToolHooks := c.cfg.Config().Hooks[hooks.EventPreToolUse]; len(preToolHooks) > 0 {
 		hookRunner = hooks.NewRunner(preToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
+	}
+	var postToolRunner *hooks.Runner
+	if postToolHooks := c.cfg.Config().Hooks[hooks.EventPostToolUse]; len(postToolHooks) > 0 {
+		postToolRunner = hooks.NewRunner(postToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
 	}
 
 	allTools = append(
@@ -1011,7 +1011,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	// without hook interception to avoid firing the user's hook N times
 	// per delegated turn. The top-level invocation of the sub-agent tool
 	// itself is still wrapped from the coder's side.
-	filteredTools = wrapToolsWithHooks(filteredTools, hookRunner, isSubAgent)
+	filteredTools = wrapToolsWithHooks(filteredTools, hookRunner, postToolRunner, isSubAgent)
 
 	return filteredTools, nil
 }

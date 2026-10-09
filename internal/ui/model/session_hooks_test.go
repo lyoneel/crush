@@ -29,7 +29,7 @@ func hookTestConfig(t *testing.T, command string) *config.Config {
 	cfg := &config.Config{}
 	if command != "" {
 		cfg.Hooks = map[string][]config.HookConfig{
-			hooks.EventSessionSwitch: {{Command: command}},
+			hooks.EventPreSessionSwitch: {{Command: command}},
 		}
 	}
 	return cfg
@@ -53,7 +53,7 @@ func TestFireSessionSwitchHookRecordsBothSessions(t *testing.T) {
 	logFile := filepath.Join(dir, "hooks.log")
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"event":"SessionSwitch"`)
+	require.Contains(t, string(data), `"event":"PreSessionSwitch"`)
 	require.Contains(t, string(data), `"previous_session":{"id":"sess-a","title":"Old"`)
 	require.Contains(t, string(data), `"new_session":{"id":"sess-b","title":"New Session"`)
 }

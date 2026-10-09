@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/ui/styles"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHumanizedToolName(t *testing.T) {
@@ -112,5 +115,77 @@ func TestRenderToolResultTextContent(t *testing.T) {
 		if got != expected {
 			t.Fatal("renderToolResultTextContent() did not choose plain rendering")
 		}
+	})
+}
+
+// hookMetaJSON builds a tool metadata string with the given hook sections.
+func hookMetaJSON(pre, post *hooks.HookMetadata) string {
+	type wrapper struct {
+		Hook     *hooks.HookMetadata `json:"hook,omitempty"`
+		PostHook *hooks.HookMetadata `json:"post_hook,omitempty"`
+	}
+	data, err := json.Marshal(wrapper{Hook: pre, PostHook: post})
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// TestToolOutputHookIndicatorPostHook pins the post-hook block: the
+// PostToolUse metadata renders as a second section below the PreToolUse
+// section, with the Hook [PostTU] label and the same alignment.
+func TestToolOutputHookIndicatorPostHook(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	t.Run("both sections render", func(t *testing.T) {
+		t.Parallel()
+		pre := &hooks.HookMetadata{
+			Event:     hooks.EventPreToolUse,
+			HookCount: 1,
+			Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Matcher: "^bash$", Decision: "allow"}},
+		}
+		post := &hooks.HookMetadata{
+			Event:     hooks.EventPostToolUse,
+			HookCount: 1,
+			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Matcher: "^bash$", Decision: "allow"}},
+		}
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(pre, post), 100))
+		require.Contains(t, out, "Hook [PreTU]")
+		require.Contains(t, out, "rtk-rewrite.sh")
+		require.Contains(t, out, "Hook [PostTU]")
+		require.Contains(t, out, "audit-tool.sh")
+		require.Contains(t, out, "\n\n", "one blank line separates the two blocks")
+	})
+
+	t.Run("post-only renders one section", func(t *testing.T) {
+		t.Parallel()
+		post := &hooks.HookMetadata{
+			Event:     hooks.EventPostToolUse,
+			HookCount: 1,
+			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Decision: "allow"}},
+		}
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100))
+		require.Contains(t, out, "Hook [PostTU]")
+		require.NotContains(t, out, "Hook [PreTU]")
+	})
+
+	t.Run("post deny styling applies", func(t *testing.T) {
+		t.Parallel()
+		post := &hooks.HookMetadata{
+			Event:     hooks.EventPostToolUse,
+			HookCount: 1,
+			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Decision: "deny", Reason: "too late"}},
+		}
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100))
+		require.Contains(t, out, "Denied")
+		require.Contains(t, out, "too late")
+	})
+
+	t.Run("empty metadata renders nothing", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, toolOutputHookIndicator(&sty, "", 100))
+		require.Empty(t, toolOutputHookIndicator(&sty, hookMetaJSON(nil, nil), 100))
 	})
 }

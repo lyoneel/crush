@@ -306,7 +306,7 @@ const sessionStartTimeout = 30 * time.Second
 // fireSessionStart fires the SessionStart lifecycle hook on the first
 // prompt of a session, before PromptSubmitted runs for the same prompt.
 // The gate is "no user text message exists yet": hook-only transcript
-// messages (for example the NewSession record written at creation) must
+// messages (for example the SessionNew record written at creation) must
 // not count as the session having been used. A missing or unreadable
 // message list falls back to firing (first-prompt assumption) and logs
 // at debug. The fire is synchronous under a bounded context so the
@@ -347,7 +347,7 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 
 	// Fork: fire the SessionStart lifecycle hook on the first prompt of a
 	// session, synchronously and before PromptSubmitted, so the transcript
-	// shows Hook [NS] above Hook [PS].
+	// shows Hook [ST] above Hook [PS].
 	c.fireSessionStart(ctx, sessionID)
 
 	// Fork: fire the PromptSubmitted lifecycle hook before the turn

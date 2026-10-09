@@ -13,7 +13,7 @@ import (
 // Hook event name constants.
 const (
 	EventPreToolUse      = "PreToolUse"
-	EventNewSession      = "NewSession"
+	EventSessionNew      = "SessionNew"
 	EventSessionStart    = "SessionStart"
 	EventSessionSwitch   = "SessionSwitch"
 	EventPromptSubmitted = "PromptSubmitted"
@@ -29,6 +29,7 @@ const HaltExitCode = 49
 // HookMetadata is embedded in tool response metadata so the UI can
 // display a hook indicator.
 type HookMetadata struct {
+	Event        string     `json:"event,omitempty"`
 	HookCount    int        `json:"hook_count"`
 	Decision     string     `json:"decision"`
 	Halt         bool       `json:"halt,omitempty"`

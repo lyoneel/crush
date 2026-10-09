@@ -814,6 +814,13 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 		return ""
 	}
 
+	// Events with a bracket tag (PreToolUse) render the label as
+	// "Hook [tag]" instead of the plain "Hook".
+	label := "Hook"
+	if tag, ok := lifecycleTag[h.Event]; ok {
+		label = "Hook " + tag
+	}
+
 	// Sanitize names (replace newlines with ¶) and compute max widths
 	// for the name, matcher, and detail columns so they align. The name
 	// column is capped at maxHookNameWidth characters.
@@ -847,9 +854,9 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 
 	// Cap the name column so the widest line still fits in width. The
 	// per-line layout is:
-	//   "Hook " + name(padded) + [" " + matcher(padded)] + " → " + detail
+	//   label + " " + name(padded) + [" " + matcher(padded)] + " → " + detail
 	if width > 0 {
-		fixed := lipgloss.Width(sty.Tool.HookLabel.Render("Hook")) + 1
+		fixed := lipgloss.Width(sty.Tool.HookLabel.Render(label)) + 1
 		if maxMatcherWidth > 0 {
 			fixed += 1 + maxMatcherWidth
 		}
@@ -863,7 +870,7 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -900,7 +907,8 @@ func isLikelyPath(s string) bool {
 }
 
 // renderHookLine renders a single hook indicator line with aligned columns.
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// label is the plain-text label column (e.g. "Hook" or "Hook [PT]").
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -915,8 +923,8 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, rawName, detail strin
 		}
 	}
 
-	labelStyle := sty.Tool.HookLabel
 	arrowStyle := sty.Tool.HookArrow
+	labelStyle := sty.Tool.HookLabel
 	if hi.Decision == "deny" {
 		labelStyle = sty.Tool.HookDeniedLabel
 		arrowStyle = sty.Tool.HookDeniedLabel
@@ -924,7 +932,7 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, rawName, detail strin
 
 	return fmt.Sprintf(
 		"%s %s%s%s %s %s",
-		labelStyle.Render("Hook"),
+		labelStyle.Render(label),
 		name,
 		namePad,
 		matcherPart,

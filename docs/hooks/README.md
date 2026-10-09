@@ -197,6 +197,9 @@ interception so a single delegated turn doesn't trigger your hook N times. The
 outer sub-agent tool call itself _is_ hooked, so policy like "never let the
 agent spawn sub-agents" still works.
 
+When hooks ran for a tool call, the tool indicator in the transcript shows a
+`Hook [PT]` line above the result.
+
 Hooks are keyed by event name. Only `command` is required, and you can omit
 `matcher` to match all tools.
 
@@ -208,7 +211,7 @@ transcript with a bracket tag.
 
 | Event             | When it fires                                             | Tag  |
 |-------------------|-----------------------------------------------------------|------|
-| `NewSession`      | A session is created, before its first prompt             | `[NS]` |
+| `SessionNew`      | A session is created, before its first prompt             | `[SN]` |
 | `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[ST]` |
 | `SessionSwitch`   | The displayed session changes (status line only)          | `[SS]` |
 | `PromptSubmitted` | Every prompt, before the turn starts                      | `[PS]` |
@@ -671,7 +674,7 @@ Extends the common payload:
 
 ### Stdin payload — lifecycle events
 
-Extends the common payload. `NewSession`, `SessionStart`, `PromptSubmitted`,
+Extends the common payload. `SessionNew`, `SessionStart`, `PromptSubmitted`,
 and `AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
 additionally carries `prompt`; `SessionSwitch` carries `previous_session`
 and `new_session` (either side is `null` when the transition has no prior or

@@ -51,7 +51,7 @@ func runAndRecordLifecycleHook(ctx context.Context, messages message.Service, ru
 	}
 	runs := make([]message.HookRun, len(result.Hooks))
 	for i, h := range result.Hooks {
-		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision}
+		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status}
 	}
 	recordCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -73,6 +73,28 @@ func fireRecordedLifecycleHook(messages message.Service, runner *hooks.Runner, e
 		return
 	}
 	go runAndRecordLifecycleHook(context.Background(), messages, runner, eventName, sessionID, data)
+}
+
+// lifecycleHookTimeout caps a synchronous lifecycle fire. Each hook
+// command already honors its own Timeout; this bounds the whole event.
+const lifecycleHookTimeout = 30 * time.Second
+
+// fireLifecycleHookDefault runs a lifecycle event's hooks, synchronous
+// by default and recorded in the transcript. When every configured hook
+// sets async: true the fire becomes fire-and-forget. Decisions are
+// ignored; a nil runner or an empty result records nothing.
+func fireLifecycleHookDefault(messages message.Service, cfg *config.ConfigStore, eventName, sessionID string, data hooks.SessionEventData) {
+	runner := lifecycleRunnerFromStore(cfg, eventName)
+	if runner == nil {
+		return
+	}
+	if hooks.AllAsync(cfg.Config().Hooks[eventName]) {
+		fireRecordedLifecycleHook(messages, runner, eventName, sessionID, data)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), lifecycleHookTimeout)
+	defer cancel()
+	runAndRecordLifecycleHook(ctx, messages, runner, eventName, sessionID, data)
 }
 
 // sessionPayload converts a session snapshot into the hook payload form.

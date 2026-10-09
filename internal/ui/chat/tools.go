@@ -1058,12 +1058,21 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag, rawName, 
 }
 
 // hookDetail returns the styled detail text for a single hook result.
+// A hook that did not complete shows its execution status instead of
+// OK: Timeout for a timed-out run, Exit <N> for any other failure.
 func hookDetail(sty *styles.Styles, hi hooks.HookInfo) string {
 	const (
 		okMessage      = "OK"
+		timeoutMessage = "Timeout"
 		denialMessage  = "Denied"
 		rewroteMessage = "Rewrote Output"
 	)
+	switch {
+	case hi.Status == hooks.StatusTimeout:
+		return sty.Tool.HookFailed.Render(timeoutMessage)
+	case strings.HasPrefix(hi.Status, "exit "):
+		return sty.Tool.HookFailed.Render(hi.Status)
+	}
 	switch hi.Decision {
 	case "deny":
 		if hi.Reason != "" {

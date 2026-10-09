@@ -898,6 +898,12 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case sessionHookStatusMsg:
+		text := "Session hook ran"
+		if len(msg.names) > 0 {
+			text = fmt.Sprintf("Session hook ran: %s", strings.Join(msg.names, ", "))
+		}
+		m.status.SetInfoMsg(util.InfoMsg{Type: util.InfoTypeInfo, Msg: text})
 	case loadSessionMsg:
 		if m.forceCompactMode {
 			m.isCompact = true
@@ -912,9 +918,11 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		// Fork: SessionSwitch lifecycle hook; fires before the previous
-		// session reference is replaced.
+		// session reference is replaced, and reports to the status line.
 		if sessionSwitched(m.session, msg.session) {
-			m.fireSessionSwitchHook(m.session, msg.session)
+			if cmd := m.fireSessionSwitchHook(m.session, msg.session); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 		m.setState(uiChat, m.focus)
 		m.session = msg.session

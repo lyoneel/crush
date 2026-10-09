@@ -128,19 +128,26 @@ func sessionSwitched(current, next *session.Session) bool {
 	return current == nil || current.ID != next.ID
 }
 
-// fireSessionSwitchHook fires the SessionSwitch lifecycle hook when the
-// displayed session changes: one call carries the abandoned session and
-// the newly active one, and a first session has no previous side.
-// Fire-and-forget: decisions are ignored, and nothing runs when no
-// hooks are configured.
-func (m *UI) fireSessionSwitchHook(previous, next *session.Session) {
+// sessionHookStatusMsg reports that SessionSwitch hooks ran, for the
+// status line.
+type sessionHookStatusMsg struct {
+	event string
+	names []string
+}
+
+// fireSessionSwitchHook returns a command that runs the SessionSwitch
+// lifecycle hook when the displayed session changes: one call carries
+// the abandoned session and the newly active one, and a first session
+// has no previous side. Decisions are ignored, and the command is nil
+// when no hooks are configured.
+func (m *UI) fireSessionSwitchHook(previous, next *session.Session) tea.Cmd {
 	cfg := m.com.Config()
 	if cfg == nil {
-		return
+		return nil
 	}
 	eventHooks := cfg.Hooks[hooks.EventSessionSwitch]
 	if len(eventHooks) == 0 {
-		return
+		return nil
 	}
 	cwd := m.com.Workspace.WorkingDir()
 	runner := hooks.NewRunner(eventHooks, cwd, cwd)
@@ -156,8 +163,18 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session) {
 	if next != nil {
 		sessionID = next.ID
 	}
-	hooks.FireAsync(runner, hooks.EventSessionSwitch, sessionID,
-		hooks.SessionEventData{Previous: previousPayload, New: nextPayload})
+	return func() tea.Msg {
+		result, err := runner.RunLifecycle(context.Background(), hooks.EventSessionSwitch, sessionID,
+			hooks.SessionEventData{Previous: previousPayload, New: nextPayload})
+		if err != nil {
+			return sessionHookStatusMsg{event: hooks.EventSessionSwitch}
+		}
+		names := make([]string, len(result.Hooks))
+		for i, h := range result.Hooks {
+			names[i] = h.Name
+		}
+		return sessionHookStatusMsg{event: hooks.EventSessionSwitch, names: names}
+	}
 }
 
 // reportCurrentSession returns a fire-and-forget tea.Cmd that

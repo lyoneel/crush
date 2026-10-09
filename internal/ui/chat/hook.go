@@ -22,6 +22,7 @@ var hookSeq atomic.Int64
 // width budget of the body layout rendered by toolOutputHookIndicator.
 var lifecycleTag = map[string]string{
 	"SessionSwitch":   "[SS]",
+	"SessionStart":    "[NS]",
 	"PromptSubmitted": "[PS]",
 	"AgentFinished":   "[AF]",
 }

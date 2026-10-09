@@ -283,3 +283,34 @@ func TestHookItemSetContentPinsUpdate(t *testing.T) {
 	require.Contains(t, out, "✓ Hook [PrePR] slow-notify.sh → OK")
 	require.NotContains(t, out, "●")
 }
+
+// TestHookLabelColumnAlignment pins that the "Hook" label starts in the
+// same column on every hook line: lifecycle lines spend their first two
+// cells on the status glyph, inline tool indicator lines indent by the
+// same two cells so both label columns line up.
+func TestHookLabelColumnAlignment(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	lifecycle := ansi.Strip(NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none"}},
+	}).RawRender(100))
+
+	inline := &hooks.HookMetadata{
+		Event:     hooks.EventPreToolUse,
+		HookCount: 1,
+		Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Matcher: "^bash$", Decision: "allow"}},
+	}
+	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), 100))
+
+	// strings.Index is byte-based; strip everything from the label on to
+	// measure the label column in display cells.
+	labelCol := ansi.StringWidth(strings.SplitN(lifecycle, "Hook", 2)[0])
+	require.Equal(t, 2, labelCol, "the lifecycle label sits two cells in, after the glyph")
+	require.Equal(t, labelCol, ansi.StringWidth(strings.SplitN(toolLine, "Hook", 2)[0]),
+		"the inline label must start in the same column as the lifecycle label")
+	require.True(t, strings.HasPrefix(toolLine, "  Hook [PreTU]"),
+		"the inline line indents by the glyph's two cells")
+}

@@ -833,12 +833,17 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 
 	// Events with a bracket tag (PreToolUse) append the tag after the
 	// plain "Hook" label. The label and the tag keep separate styles:
-	// the label is green, the tag is gray.
+	// the label is green, the tag is gray. Lifecycle events (hook
+	// completion notices recorded in the transcript) additionally get a
+	// leading status glyph so they read differently from the inline
+	// PreToolUse indicator: a green check when the hook completed and
+	// a yellow cross when it did not.
 	label := "Hook"
 	tag := ""
 	if t, ok := lifecycleTag[h.Event]; ok {
 		tag = t
 	}
+	lifecycle := h.Event != hooks.EventPreToolUse && h.Event != hooks.EventPostToolUse
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
 	// for the name, matcher, and detail columns so they align. The name
@@ -873,9 +878,12 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 
 	// Cap the name column so the widest line still fits in width. The
 	// per-line layout is:
-	//   label + " " + name(padded) + [" " + matcher(padded)] + " → " + detail
+	//   [glyph + " "] label [" " + tag] " " + name(padded) + [" " + matcher(padded)] + " → " + detail
 	if width > 0 {
 		fixed := lipgloss.Width(sty.Tool.HookLabel.Render(label)) + 1
+		if lifecycle {
+			fixed += 3
+		}
 		if tag != "" {
 			fixed += lipgloss.Width(sty.Tool.HookTag.Render(tag)) + 1
 		}
@@ -884,7 +892,14 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 		}
 		fixed += 1 + lipgloss.Width(sty.Tool.HookArrow.Render(styles.ArrowRightIcon)) + 1
 		fixed += maxDetailWidth
-		if budget := width - fixed; budget < maxNameWidth {
+		budget := width - fixed
+		if budget < 1 && lifecycle {
+			// The glyph costs 2 cells; drop it before eating the whole
+			// name column so narrow widths stay readable.
+			lifecycle = false
+			budget += 2
+		}
+		if budget < maxNameWidth {
 			maxNameWidth = max(1, budget)
 		}
 	}
@@ -892,7 +907,7 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, label, tag, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -930,8 +945,9 @@ func isLikelyPath(s string) bool {
 
 // renderHookLine renders a single hook indicator line with aligned columns.
 // label is the plain-text label column ("Hook") and tag the bracket tag
-// (for example "[PreTU]"); the tag may be empty.
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// (for example "[PreTU]"); the tag may be empty. lifecycle renders a
+// leading completion glyph for transcript hook lines.
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle bool, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -957,6 +973,15 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag, rawName, 
 	head := labelStyle.Render(label)
 	if tag != "" {
 		head += " " + tagStyle.Render(tag)
+	}
+	if lifecycle {
+		icon := styles.ToolSuccess
+		style := sty.Tool.JobIconSuccess
+		if hi.Status != "" {
+			icon = styles.ToolError
+			style = sty.Tool.HookFailed
+		}
+		head = style.SetString(icon).Render() + " " + head
 	}
 
 	return fmt.Sprintf(

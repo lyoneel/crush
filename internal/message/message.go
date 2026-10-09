@@ -621,6 +621,7 @@ const (
 	toolResultType   partType = "tool_result"
 	finishType       partType = "finish"
 	shellCommandType partType = "shell_command"
+	hookType         partType = "hook"
 )
 
 type partWrapper struct {
@@ -651,6 +652,8 @@ func marshalParts(parts []ContentPart) ([]byte, error) {
 			typ = finishType
 		case ShellCommand:
 			typ = shellCommandType
+		case HookContent:
+			typ = hookType
 		default:
 			return nil, fmt.Errorf("unknown part type: %T", part)
 		}
@@ -709,6 +712,8 @@ func unmarshalPart(typ partType, data json.RawMessage) (ContentPart, error) {
 		return decodePart[Finish](data)
 	case shellCommandType:
 		return decodePart[ShellCommand](data)
+	case hookType:
+		return decodePart[HookContent](data)
 	default:
 		return nil, fmt.Errorf("unknown part type: %s", typ)
 	}

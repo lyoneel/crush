@@ -310,8 +310,9 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 	}
 
 	// Fork: fire the PromptSubmitted lifecycle hook before the turn
-	// dispatches; asynchronous and informational.
-	fireLifecycleHook(lifecycleRunnerFromStore(c.cfg, hooks.EventPromptSubmitted),
+	// dispatches; asynchronous and informational, recorded in the
+	// transcript so the chat shows the run next to the prompt.
+	fireRecordedLifecycleHook(c.messages, lifecycleRunnerFromStore(c.cfg, hooks.EventPromptSubmitted),
 		hooks.EventPromptSubmitted, sessionID,
 		hooks.SessionEventData{Prompt: prompt})
 

@@ -1302,8 +1302,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 
 	// Fork: fire the AgentFinished lifecycle hook for every completed
 	// run, interactive and non-interactive; decisions are ignored. The
-	// session snapshot carries the final usage.
-	fireLifecycleHook(lifecycleRunnerFromStore(a.cfg, hooks.EventAgentFinished),
+	// session snapshot carries the final usage, and the run is recorded
+	// in the transcript below the response.
+	fireRecordedLifecycleHook(a.messages, lifecycleRunnerFromStore(a.cfg, hooks.EventAgentFinished),
 		hooks.EventAgentFinished, call.SessionID,
 		hooks.SessionEventData{Session: sessionPayload(currentSession)})
 
@@ -1678,6 +1679,11 @@ If not, please feel free to ignore. Again do not mention this message to the use
 
 	for _, m := range msgs {
 		if len(m.Parts) == 0 {
+			continue
+		}
+		// Fork: hook-run annotations exist for the chat only and must
+		// never enter the model context.
+		if m.OnlyHookParts() {
 			continue
 		}
 		// Assistant message without content or tool calls (cancelled before it returned anything).

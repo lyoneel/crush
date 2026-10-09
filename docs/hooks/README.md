@@ -236,7 +236,7 @@ transcript with a bracket tag.
 | Event              | When it fires                                       | Tag       |
 |--------------------|-----------------------------------------------------|-----------|
 | `PreSession`       | The first prompt of a session, before `PrePrompt`   | `[PreSE]` |
-| `PreSessionSwitch` | The displayed session changes (status line only)    | `[PreSS]` |
+| `PreSessionSwitch` | The displayed session changes                       | `[PreSS]` |
 | `PrePrompt`        | Every prompt, before the turn dispatches            | `[PrePR]` |
 | `PostPrompt`       | Every prompt, after the user message is persisted   | `[PostPR]` |
 | `PostResponse`     | Every completed turn                                | `[PostRE]` |
@@ -260,7 +260,10 @@ chat as it happens.
 
 An `async: true` hook also renders while it runs. The fire writes a pending
 line immediately, with the same green pending dot the bash tool uses, and the
-line updates in place when the run completes:
+line updates in place when the run completes. For `PreSessionSwitch` this
+means the pending line appears inside the newly opened session, before any
+prompt is sent, and turns into the result line when the run completes:
+
 
 ```text
 ● Hook [PrePR] slow-notify.sh        (while the script runs)

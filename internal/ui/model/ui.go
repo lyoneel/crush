@@ -293,6 +293,15 @@ type UI struct {
 	// stable, eliminating races between session load and shell output.
 	pendingBangCommand string
 
+	// pendingSwitchLoad holds a session load deferred by synchronous
+	// PreSessionSwitch hooks: the load applies when the hooks finish.
+	pendingSwitchLoad *loadSessionMsg
+
+	// lastSwitchPendingRuns buffers the pending async switch hook runs
+	// until the session load applied, so the lines append to the new
+	// session's chat list.
+	lastSwitchPendingRuns []message.HookRun
+
 	// bangCancel cancels a running bang-mode shell command. Nil when no
 	// bang command is in progress. Set by runShellCommand, cleared by
 	// shellResultMsg. Checked by isAgentBusy and cancelAgent so that
@@ -912,81 +921,41 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-	case sessionHookStatusMsg:
-		text := "Session hook ran"
-		if len(msg.names) > 0 {
-			text = fmt.Sprintf("Session hook ran: %s", strings.Join(msg.names, ", "))
+	case switchHookDoneMsg:
+		// Synchronous switch hooks finished; apply the deferred load.
+		if msg.gen == switchHookGen.Load() && m.pendingSwitchLoad != nil {
+			m.pendingSwitchLoad = nil
+			cmds = append(cmds, m.applyLoadedSession(msg.load)...)
+			m.appendSwitchHookLines(msg.runs)
 		}
-		m.status.SetInfoMsg(util.InfoMsg{Type: util.InfoTypeInfo, Msg: text})
+	case switchHookPendingMsg:
+		// Async switch hooks started; the session is already displayed.
+		m.lastSwitchPendingRuns = msg.runs
+	case switchHookRunsMsg:
+		m.updateSwitchHookLines(msg)
 	case loadSessionMsg:
-		if m.forceCompactMode {
-			m.isCompact = true
-		}
-		// Plan mode is scoped to the session it was enabled in: switching
-		// to another session falls back to code mode and drops any pending
-		// plan handoff. (Loading the session that was just created for the
-		// first plan-mode prompt is not a switch; the IDs match then.)
-		if m.session == nil || m.session.ID != msg.session.ID {
-			if cmd := m.resetPlanModeState(); cmd != nil {
+		// Fork: PreSessionSwitch hook. Synchronous hooks block the
+		// switch: stash the load and apply it when the hook finishes.
+		// Asynchronous hooks switch now and surface a pending line.
+		if hooksConfigured := m.preSessionSwitchHooksConfigured(); sessionSwitched(m.session, msg.session) && hooksConfigured {
+			isAsync := m.preSessionSwitchHooksAsync()
+			if !isAsync {
+				if cmd := m.fireSessionSwitchHook(m.session, msg.session, msg); cmd != nil {
+					m.pendingSwitchLoad = &msg
+					cmds = append(cmds, cmd)
+					return m, tea.Batch(cmds...)
+				}
+			} else if cmd := m.fireSessionSwitchHook(m.session, msg.session, msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
 			m.turnOutcome = ""
 		}
-		// Fork: SessionSwitch lifecycle hook; fires before the previous
-		// session reference is replaced, and reports to the status line.
-		if sessionSwitched(m.session, msg.session) {
-			if cmd := m.fireSessionSwitchHook(m.session, msg.session); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
+		cmds = append(cmds, m.applyLoadedSession(msg)...)
+		if m.lastSwitchPendingRuns != nil {
+			runs := m.lastSwitchPendingRuns
+			m.lastSwitchPendingRuns = nil
+			m.appendSwitchHookLines(runs)
 		}
-		m.setState(uiChat, m.focus)
-		m.session = msg.session
-		m.sidebarOffset = 0
-		m.sessionFiles = msg.files
-		// Session switch: the memoized busy state and queued prompts
-		// belong to the previous session. Drop them and re-fetch
-		// off-thread so the queue pill and esc behavior track the new
-		// session instead of a stale one.
-		m.invalidateBusyCaches()
-		m.invalidatePromptQueue()
-		m.promptQueue = 0
-		m.promptQueueItems = nil
-		m.promptQueueCheckedAt = time.Time{}
-		if cmd := m.dispatchBusyRefresh(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
-		msgs := msg.messages
-		if cmd := m.setSessionMessages(msgs); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.restoreModelFromSession(msgs); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.autoExpandPillsIfReasonable(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		// If a bang command was issued before the session finished
-		// loading, start it now that the chat list is stable.
-		if m.pendingBangCommand != "" {
-			cmds = append(cmds, m.runShellCommandInternal(m.pendingBangCommand, true))
-			m.pendingBangCommand = ""
-		}
-		if hasInProgressTodo(m.session.Todos) {
-			// only start spinner if there is an in-progress todo
-			if m.isAgentBusy() {
-				m.todoIsSpinning = true
-				cmds = append(cmds, m.todoSpinner.Tick)
-			}
-			m.updateLayoutAndSize()
-		}
-		// Reload prompt history for the new session.
-		m.historyReset()
-		cmds = append(cmds, m.loadPromptHistory())
-		m.updateLayoutAndSize()
 
 	case sessionFilesUpdatesMsg:
 		m.sessionFiles = msg.sessionFiles

@@ -211,7 +211,6 @@ transcript with a bracket tag.
 
 | Event             | When it fires                                             | Tag  |
 |-------------------|-----------------------------------------------------------|------|
-| `SessionNew`      | A session is created, before its first prompt             | `[SN]` |
 | `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[ST]` |
 | `SessionSwitch`   | The displayed session changes (status line only)          | `[SS]` |
 | `PromptSubmitted` | Every prompt, before the turn starts                      | `[PS]` |
@@ -674,7 +673,7 @@ Extends the common payload:
 
 ### Stdin payload — lifecycle events
 
-Extends the common payload. `SessionNew`, `SessionStart`, `PromptSubmitted`,
+Extends the common payload. `SessionStart`, `PromptSubmitted`,
 and `AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
 additionally carries `prompt`; `SessionSwitch` carries `previous_session`
 and `new_session` (either side is `null` when the transition has no prior or

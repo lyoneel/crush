@@ -25,7 +25,6 @@ func TestHookItemRendersLifecycleTag(t *testing.T) {
 	}{
 		{"PreToolUse", "[PT]"},
 		{"SessionSwitch", "[SS]"},
-		{"SessionNew", "[SN]"},
 		{"SessionStart", "[ST]"},
 		{"PromptSubmitted", "[PS]"},
 		{"AgentFinished", "[AF]"},

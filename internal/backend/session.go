@@ -4,7 +4,6 @@ import (
 	"context"
 
 	mcptools "github.com/charmbracelet/crush/internal/agent/tools/mcp"
-	"github.com/charmbracelet/crush/internal/agent"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/proto"
@@ -22,7 +21,6 @@ func (b *Backend) CreateSession(ctx context.Context, workspaceID, title string) 
 	if err != nil {
 		return session.Session{}, err
 	}
-	agent.FireSessionNew(ws.Cfg, ws.Sessions, ws.Messages, sess)
 	return sess, nil
 }
 

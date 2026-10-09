@@ -73,7 +73,7 @@ func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON string) []b
 
 // SessionEventData carries the lifecycle-specific payload fields.
 // Previous and New apply to SessionSwitch; Prompt applies to
-// PromptSubmitted; Session applies to SessionNew, SessionStart, and
+// PromptSubmitted; Session applies to SessionStart and
 // AgentFinished.
 type SessionEventData struct {
 	Previous *SessionPayload

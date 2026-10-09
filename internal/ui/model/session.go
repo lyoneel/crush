@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -17,6 +19,7 @@ import (
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/ui/common"
+	"github.com/charmbracelet/crush/internal/ui/chat"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/crush/internal/ui/util"
 	"github.com/charmbracelet/x/ansi"
@@ -128,19 +131,132 @@ func sessionSwitched(current, next *session.Session) bool {
 	return current == nil || current.ID != next.ID
 }
 
-// sessionHookStatusMsg reports that PreSessionSwitch hooks ran, for the
-// status line.
-type sessionHookStatusMsg struct {
-	event string
-	names []string
+// preSessionSwitchHooksConfigured reports whether any PreSessionSwitch
+// hook is configured.
+func (m *UI) preSessionSwitchHooksConfigured() bool {
+	cfg := m.com.Config()
+	return cfg != nil && len(cfg.Hooks[hooks.EventPreSessionSwitch]) > 0
 }
 
-// fireSessionSwitchHook returns a command that runs the PreSessionSwitch
-// lifecycle hook when the displayed session changes: one call carries
-// the abandoned session and the newly active one, and a first session
-// has no previous side. Decisions are ignored, and the command is nil
-// when no hooks are configured.
-func (m *UI) fireSessionSwitchHook(previous, next *session.Session) tea.Cmd {
+// preSessionSwitchHooksAsync reports whether every configured
+// PreSessionSwitch hook is asynchronous.
+func (m *UI) preSessionSwitchHooksAsync() bool {
+	cfg := m.com.Config()
+	if cfg == nil {
+		return false
+	}
+	return hooks.AllAsync(cfg.Hooks[hooks.EventPreSessionSwitch])
+}
+
+// applyLoadedSession applies a loaded session to the UI: the session
+// reference, chat list, LSPs, prompt history, and pending bang command.
+// The synchronous switch path defers this until its hooks finish.
+func (m *UI) applyLoadedSession(msg loadSessionMsg) []tea.Cmd {
+	var cmds []tea.Cmd
+	if m.forceCompactMode {
+		m.isCompact = true
+	}
+	// Plan mode is scoped to the session it was enabled in: switching
+	// to another session falls back to code mode and drops any pending
+	// plan handoff. (Loading the session that was just created for the
+	// first plan-mode prompt is not a switch; the IDs match then.)
+	if m.session == nil || m.session.ID != msg.session.ID {
+		if cmd := m.resetPlanModeState(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	m.setState(uiChat, m.focus)
+	m.session = msg.session
+	m.sidebarOffset = 0
+	m.sessionFiles = msg.files
+	// Session switch: the memoized busy state and queued prompts
+	// belong to the previous session. Drop them and re-fetch
+	// off-thread so the queue pill and esc behavior track the new
+	// session instead of a stale one.
+	m.invalidateBusyCaches()
+	m.invalidatePromptQueue()
+	m.promptQueue = 0
+	m.promptQueueItems = nil
+	m.promptQueueCheckedAt = time.Time{}
+	if cmd := m.dispatchBusyRefresh(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
+	msgs := msg.messages
+	if cmd := m.setSessionMessages(msgs); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.restoreModelFromSession(msgs); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.autoExpandPillsIfReasonable(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	// If a bang command was issued before the session finished
+	// loading, start it now that the chat list is stable.
+	if m.pendingBangCommand != "" {
+		cmds = append(cmds, m.runShellCommandInternal(m.pendingBangCommand, true))
+		m.pendingBangCommand = ""
+	}
+	if hasInProgressTodo(m.session.Todos) {
+		// only start spinner if there is an in-progress todo
+		if m.isAgentBusy() {
+			m.todoIsSpinning = true
+			cmds = append(cmds, m.todoSpinner.Tick)
+		}
+		m.updateLayoutAndSize()
+	}
+	// Reload prompt history for the new session.
+	m.historyReset()
+	cmds = append(cmds, m.loadPromptHistory())
+	m.updateLayoutAndSize()
+	return cmds
+}
+
+// switchHookLocalID is the chat item id prefix for transient
+// PreSessionSwitch hook lines. The lines are not persisted: they live
+// in the live chat list only and vanish on reload.
+const switchHookLocalID = "switch-hook"
+
+// switchHookGen increments on every switch fire so a completion from an
+// abandoned switch never updates the new switch's lines.
+var switchHookGen atomic.Int64
+
+// switchHookDoneMsg reports that synchronous PreSessionSwitch hooks
+// finished; the deferred session load applies now. runs is the per-hook
+// result, displayed as transient lines in the new session.
+type switchHookDoneMsg struct {
+	gen  int64
+	runs []message.HookRun
+	load loadSessionMsg
+}
+
+// switchHookPendingMsg reports that asynchronous PreSessionSwitch hooks
+// started; the pending lines append to the already-displayed session.
+type switchHookPendingMsg struct {
+	gen  int64
+	runs []message.HookRun
+}
+
+// switchHookRunsMsg reports that asynchronous PreSessionSwitch hooks
+// finished; the pending lines update in place with the outcomes.
+type switchHookRunsMsg struct {
+	gen  int64
+	runs []message.HookRun
+}
+
+// fireSessionSwitchHook returns the commands that run the
+// PreSessionSwitch lifecycle hook when the displayed session changes:
+// one call carries the abandoned session and the newly active one, and
+// a first session has no previous side. Synchronous hooks block the
+// switch: the command finishes the hooks first, and the caller applies
+// the loaded session when the done message arrives. Asynchronous hooks
+// switch immediately and surface a pending line that updates in place.
+// The command is nil when no hooks are configured.
+func (m *UI) fireSessionSwitchHook(previous, next *session.Session, load loadSessionMsg) tea.Cmd {
 	cfg := m.com.Config()
 	if cfg == nil {
 		return nil
@@ -163,18 +279,84 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session) tea.Cmd {
 	if next != nil {
 		sessionID = next.ID
 	}
-	return func() tea.Msg {
-		result, err := runner.RunLifecycle(context.Background(), hooks.EventPreSessionSwitch, sessionID,
-			hooks.SessionEventData{Previous: previousPayload, New: nextPayload})
-		if err != nil {
-			return sessionHookStatusMsg{event: hooks.EventPreSessionSwitch}
+	gen := switchHookGen.Add(1)
+
+	if hooks.AllAsync(eventHooks) {
+		pending := func() tea.Msg {
+			runs := make([]message.HookRun, 0, len(eventHooks))
+			seen := make(map[string]bool, len(eventHooks))
+			for _, h := range eventHooks {
+				if seen[h.Command] {
+					continue
+				}
+				seen[h.Command] = true
+				runs = append(runs, message.HookRun{
+					Event: hooks.EventPreSessionSwitch, Name: h.DisplayName(),
+					Decision: "none", Status: hooks.StatusRunning,
+				})
+			}
+			return switchHookPendingMsg{gen: gen, runs: runs}
 		}
-		names := make([]string, len(result.Hooks))
-		for i, h := range result.Hooks {
-			names[i] = h.Name
+		done := func() tea.Msg {
+			return switchHookRunsMsg{gen: gen, runs: m.runSwitchHook(runner, sessionID, previousPayload, nextPayload)}
 		}
-		return sessionHookStatusMsg{event: hooks.EventPreSessionSwitch, names: names}
+		return tea.Batch(pending, done)
 	}
+
+	return func() tea.Msg {
+		runs := m.runSwitchHook(runner, sessionID, previousPayload, nextPayload)
+		return switchHookDoneMsg{gen: gen, runs: runs, load: load}
+	}
+}
+
+// runSwitchHook runs the PreSessionSwitch hooks and converts the result
+// into transcript runs; a failed runner records no runs.
+func (m *UI) runSwitchHook(runner *hooks.Runner, sessionID string, previous, next *hooks.SessionPayload) []message.HookRun {
+	result, err := runner.RunLifecycle(context.Background(), hooks.EventPreSessionSwitch, sessionID,
+		hooks.SessionEventData{Previous: previous, New: next})
+	if err != nil {
+		slog.Error("Session switch hook runner failed", "event", hooks.EventPreSessionSwitch, "session_id", sessionID, "error", err)
+		return nil
+	}
+	runs := make([]message.HookRun, len(result.Hooks))
+	for i, h := range result.Hooks {
+		runs[i] = message.HookRun{Event: hooks.EventPreSessionSwitch, Name: h.Name, Decision: h.Decision, Status: h.Status}
+	}
+	return runs
+}
+
+// appendSwitchHookLines appends the transient switch hook lines to the
+// chat list for the currently displayed session.
+func (m *UI) appendSwitchHookLines(runs []message.HookRun) {
+	if len(runs) == 0 {
+		return
+	}
+	items := make([]chat.MessageItem, 0, len(runs))
+	for _, run := range runs {
+		items = append(items, chat.NewHookItem(m.com.Styles, switchHookLocalID, message.HookContent{
+			Event: hooks.EventPreSessionSwitch,
+			Hooks: []message.HookRun{run},
+		}))
+	}
+	m.chat.AppendMessages(items...)
+	m.chat.ScrollToBottom()
+}
+
+// updateSwitchHookLines refreshes the transient switch hook lines in
+// place when an asynchronous run completes. Stale completions from an
+// abandoned switch are ignored.
+func (m *UI) updateSwitchHookLines(msg switchHookRunsMsg) {
+	if msg.gen != switchHookGen.Load() {
+		return
+	}
+	item, ok := m.chat.MessageItem(chat.HookItemID(switchHookLocalID, hooks.EventPreSessionSwitch)).(*chat.HookItem)
+	if !ok {
+		return
+	}
+	item.SetContent(message.HookContent{
+		Event: hooks.EventPreSessionSwitch,
+		Hooks: msg.runs,
+	})
 }
 
 // reportCurrentSession returns a fire-and-forget tea.Cmd that

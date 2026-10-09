@@ -445,12 +445,13 @@ type Styles struct {
 
 		// Hooks
 		HookLabel        lipgloss.Style // "Hook" label
-		HookTag          lipgloss.Style // bracket tag for lifecycle events, e.g. [SS]
+		HookTag          lipgloss.Style // bracket tag for hook lines, e.g. [PreSS]
 		HookName         lipgloss.Style // Hook command name
 		HookMatcher      lipgloss.Style // Matcher regex pattern
 		HookArrow        lipgloss.Style // Arrow indicator
 		HookDetail       lipgloss.Style // Decision detail text
 		HookOK           lipgloss.Style // "OK" status
+		HookFailed       lipgloss.Style // "Timeout" and "Exit <N>" failure statuses
 		HookDenied       lipgloss.Style // "Denied" status
 		HookDeniedLabel  lipgloss.Style // "Hook" label when denied
 		HookDeniedReason lipgloss.Style // Denied reason text

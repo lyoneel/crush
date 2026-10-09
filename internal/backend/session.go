@@ -4,6 +4,7 @@ import (
 	"context"
 
 	mcptools "github.com/charmbracelet/crush/internal/agent/tools/mcp"
+	"github.com/charmbracelet/crush/internal/agent"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/proto"
@@ -17,7 +18,12 @@ func (b *Backend) CreateSession(ctx context.Context, workspaceID, title string) 
 		return session.Session{}, err
 	}
 
-	return ws.Sessions.Create(ctx, title)
+	sess, err := ws.Sessions.Create(ctx, title)
+	if err != nil {
+		return session.Session{}, err
+	}
+	agent.FireNewSession(ws.Cfg, ws.Sessions, ws.Messages, sess)
+	return sess, nil
 }
 
 // GetSession retrieves a session by workspace and session ID.

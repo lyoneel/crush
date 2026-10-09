@@ -276,7 +276,12 @@ func (app *App) resolveSession(ctx context.Context, continueSessionID string, us
 		return sess, nil
 
 	default:
-		return app.Sessions.Create(ctx, agent.DefaultSessionName)
+		sess, err := app.Sessions.Create(ctx, agent.DefaultSessionName)
+		if err != nil {
+			return session.Session{}, err
+		}
+		agent.FireNewSession(app.config, app.Sessions, app.Messages, sess)
+		return sess, nil
 	}
 }
 

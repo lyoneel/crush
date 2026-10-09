@@ -444,6 +444,18 @@ func ExtractMessageItems(sty *styles.Styles, msg *message.Message, toolResults m
 		if msg.Content().Hidden {
 			return nil
 		}
+		// Fork: hook-run annotations render as indicator lines only.
+		if msg.OnlyHookParts() {
+			var items []MessageItem
+			for _, part := range msg.Parts {
+				if hc, ok := part.(message.HookContent); ok {
+					items = append(items, NewHookItem(sty, hc))
+				}
+			}
+			if len(items) > 0 {
+				return items
+			}
+		}
 		// Reconstruct shell command items from ShellCommand parts.
 		var items []MessageItem
 		for _, part := range msg.Parts {

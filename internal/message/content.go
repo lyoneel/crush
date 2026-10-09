@@ -129,6 +129,28 @@ type ToolResult struct {
 
 func (ToolResult) isPart() {}
 
+// HookRun records a single hook execution in the transcript.
+type HookRun struct {
+	Event    string `json:"event"`
+	Name     string `json:"name"`
+	Decision string `json:"decision"`
+}
+
+// HookContent is a transcript annotation for lifecycle hook runs
+// (SessionSwitch, PromptSubmitted, AgentFinished). It renders in the chat
+// but is excluded from the model context: history building skips
+// messages whose parts are hook-only, and ToAIMessage ignores the part.
+type HookContent struct {
+	Event string    `json:"event"`
+	Hooks []HookRun `json:"hooks"`
+}
+
+func (h HookContent) String() string {
+	return fmt.Sprintf("hooks %s: %d ran", h.Event, len(h.Hooks))
+}
+
+func (HookContent) isPart() {}
+
 type Finish struct {
 	Reason  FinishReason `json:"reason"`
 	Time    int64        `json:"time"`
@@ -149,6 +171,24 @@ type ShellCommand struct {
 func (ShellCommand) isPart() {}
 
 // HasShellCommand reports whether the message contains any ShellCommand parts.
+// OnlyHookParts reports whether every part is a hook annotation (plus
+// the implicit finish marker). Such messages exist to show lifecycle hook
+// runs in the UI and must stay out of the model context.
+func (m *Message) OnlyHookParts() bool {
+	if len(m.Parts) == 0 {
+		return false
+	}
+	for _, part := range m.Parts {
+		switch part.(type) {
+		case HookContent, Finish:
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func (m *Message) HasShellCommand() bool {
 	for _, part := range m.Parts {
 		if _, ok := part.(ShellCommand); ok {

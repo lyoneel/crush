@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/hooks"
@@ -46,14 +45,12 @@ func TestFireSessionSwitchHookRecordsBothSessions(t *testing.T) {
 
 	old := &session.Session{ID: "sess-a", Title: "Old", PromptTokens: 7, Cost: 0.25}
 	next := &session.Session{ID: "sess-b", Title: "New Session"}
-	m.fireSessionSwitchHook(old, next)
+	cmd := m.fireSessionSwitchHook(old, next)
+	require.NotNil(t, cmd, "configured hooks must produce a command")
+	msg := cmd()
+	require.IsType(t, sessionHookStatusMsg{}, msg)
 
 	logFile := filepath.Join(dir, "hooks.log")
-	require.Eventually(t, func() bool {
-		data, err := os.ReadFile(logFile)
-		return err == nil && len(data) > 0
-	}, 5*time.Second, 10*time.Millisecond)
-
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"event":"SessionSwitch"`)
@@ -69,14 +66,11 @@ func TestFireSessionSwitchHookFirstSession(t *testing.T) {
 	m := newTestUI()
 	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "cat >> "+filepath.Join(dir, "hooks.log"))}
 
-	m.fireSessionSwitchHook(nil, &session.Session{ID: "sess-1"})
+	cmd := m.fireSessionSwitchHook(nil, &session.Session{ID: "sess-1"})
+	require.NotNil(t, cmd)
+	cmd()
 
 	logFile := filepath.Join(dir, "hooks.log")
-	require.Eventually(t, func() bool {
-		data, err := os.ReadFile(logFile)
-		return err == nil && len(data) > 0
-	}, 5*time.Second, 10*time.Millisecond)
-
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"previous_session":null`)
@@ -91,8 +85,8 @@ func TestFireSessionSwitchHookNoHooks(t *testing.T) {
 	m := newTestUI()
 	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "")}
 
-	m.fireSessionSwitchHook(nil, &session.Session{ID: "sess-1"})
-	m.fireSessionSwitchHook(&session.Session{ID: "a"}, &session.Session{ID: "b"})
+	require.Nil(t, m.fireSessionSwitchHook(nil, &session.Session{ID: "sess-1"}))
+	require.Nil(t, m.fireSessionSwitchHook(&session.Session{ID: "a"}, &session.Session{ID: "b"}))
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)

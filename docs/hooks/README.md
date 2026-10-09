@@ -208,7 +208,8 @@ transcript with a bracket tag.
 
 | Event             | When it fires                                             | Tag  |
 |-------------------|-----------------------------------------------------------|------|
-| `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[NS]` |
+| `NewSession`      | A session is created, before its first prompt             | `[NS]` |
+| `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[ST]` |
 | `SessionSwitch`   | The displayed session changes (status line only)          | `[SS]` |
 | `PromptSubmitted` | Every prompt, before the turn starts                      | `[PS]` |
 | `AgentFinished`   | Every completed turn                                      | `[AF]` |
@@ -670,8 +671,8 @@ Extends the common payload:
 
 ### Stdin payload — lifecycle events
 
-Extends the common payload. `SessionStart`, `PromptSubmitted`, and
-`AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
+Extends the common payload. `NewSession`, `SessionStart`, `PromptSubmitted`,
+and `AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
 additionally carries `prompt`; `SessionSwitch` carries `previous_session`
 and `new_session` (either side is `null` when the transition has no prior or
 next session).
@@ -686,7 +687,7 @@ next session).
   // object | null. The newly active session on a switch.
   "new_session": { /* see below */ },
 
-  // object. The started, prompted, or finished session snapshot.
+  // object. The created, started, prompted, or finished session snapshot.
   "session": {
     "id": "313909e",
     "title": "Fix the flaky test",

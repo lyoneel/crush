@@ -42,6 +42,11 @@ func NewCoordinator(
 		return nil, err
 	}
 
+	// Hermeticity: config.Init merges the user's global hook config, and
+	// a configured lifecycle hook writes an extra transcript message per
+	// run. Tests assert exact transcript contents, so drop all hooks.
+	cfg.Config().Hooks = nil
+
 	const (
 		providerID = "test-openai-compat"
 		modelID    = "test-model"

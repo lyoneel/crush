@@ -142,9 +142,9 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 }
 
 // RunLifecycle executes all hooks configured for a lifecycle event
-// (SessionSwitch, PromptSubmitted, AgentFinished). Lifecycle hooks have
-// no tool name, so only hooks without a matcher match; results are
-// aggregated but callers treat the events as informational.
+// (SessionStart, SessionSwitch, PromptSubmitted, AgentFinished). Lifecycle
+// hooks have no tool name, so only hooks without a matcher match; results
+// are aggregated but callers treat the events as informational.
 func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, data SessionEventData) (AggregateResult, error) {
 	matching := r.matchingHooks("")
 	if len(matching) == 0 {

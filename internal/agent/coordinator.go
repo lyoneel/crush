@@ -303,6 +303,38 @@ func (c *coordinator) RunAccepted(ctx context.Context, accept *AcceptedRun, sess
 	return c.run(ctx, accept, sessionID, prompt, attachments...)
 }
 
+// sessionStartTimeout bounds the synchronous SessionStart fire so a slow
+// hook script cannot stall the first turn indefinitely.
+const sessionStartTimeout = 30 * time.Second
+
+// fireSessionStart fires the SessionStart lifecycle hook on the first
+// prompt of a session, before PromptSubmitted runs for the same prompt.
+// The gate is the session row's MessageCount: a fresh session has zero
+// messages, so exactly the first prompt fires the event. A missing or
+// unreadable session row falls back to firing (first-prompt assumption)
+// and logs at debug. The fire is synchronous under a bounded context so
+// the SessionStart line executes, and records in the transcript, before
+// the PromptSubmitted line of the same prompt.
+func (c *coordinator) fireSessionStart(ctx context.Context, sessionID string) {
+	runner := lifecycleRunnerFromStore(c.cfg, hooks.EventSessionStart)
+	if runner == nil {
+		return
+	}
+	var data hooks.SessionEventData
+	sess, err := c.sessions.Get(ctx, sessionID)
+	switch {
+	case err == nil && sess.MessageCount > 0:
+		return
+	case err == nil:
+		data.Session = sessionPayload(sess)
+	default:
+		slog.Debug("SessionStart gate: session lookup failed; firing anyway", "session_id", sessionID, "error", err)
+	}
+	fireCtx, cancel := context.WithTimeout(ctx, sessionStartTimeout)
+	defer cancel()
+	runAndRecordLifecycleHook(fireCtx, c.messages, runner, hooks.EventSessionStart, sessionID, data)
+}
+
 // run is the shared implementation behind Run and RunAccepted. When
 // accept is non-nil it is threaded onto the SessionAgentCall as
 // Accepted so sessionAgent.Run can consume the accept reservation under
@@ -312,6 +344,11 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 	if err := c.readyWg.Wait(); err != nil {
 		return nil, err
 	}
+
+	// Fork: fire the SessionStart lifecycle hook on the first prompt of a
+	// session, synchronously and before PromptSubmitted, so the transcript
+	// shows Hook [NS] above Hook [PS].
+	c.fireSessionStart(ctx, sessionID)
 
 	// Fork: fire the PromptSubmitted lifecycle hook before the turn
 	// dispatches; asynchronous and informational, recorded in the

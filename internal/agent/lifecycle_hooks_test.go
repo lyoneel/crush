@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/hooks"
+	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/stretchr/testify/require"
 )
@@ -68,4 +69,75 @@ func TestSessionPayloadConversion(t *testing.T) {
 // Payload, which builds the runner the same way NewRunner does.
 func TestLifecycleRunnerFromStore(t *testing.T) {
 	require.Nil(t, lifecycleRunnerFromStore(nil, hooks.EventAgentFinished))
+}
+
+// newSessionStartCoordinator wires a coordinator with a SessionStart hook
+// that records its payload, over a real temp-DB session and message service.
+func newSessionStartCoordinator(t *testing.T) (*coordinator, string) {
+	t.Helper()
+	env := testEnv(t)
+	logFile := filepath.Join(env.workingDir, "hooks.log")
+	cfg, err := config.Init(env.workingDir, "", false)
+	require.NoError(t, err)
+	cfg.Config().Hooks = map[string][]config.HookConfig{
+		hooks.EventSessionStart: {{Command: "cat >> " + logFile}},
+	}
+	return &coordinator{cfg: cfg, sessions: env.sessions, messages: env.messages}, logFile
+}
+
+// TestFireSessionStartFiresOnFirstPrompt pins the gate: a session with zero
+// messages fires SessionStart and records a HookContent message in the
+// transcript. This test fails on the pre-fix code because the event does not
+// exist.
+func TestFireSessionStartFiresOnFirstPrompt(t *testing.T) {
+	c, logFile := newSessionStartCoordinator(t)
+	sess, err := c.sessions.Create(t.Context(), "New Session")
+	require.NoError(t, err)
+
+	c.fireSessionStart(t.Context(), sess.ID)
+
+	data, err := os.ReadFile(logFile)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"event":"SessionStart"`)
+
+	msgs, err := c.messages.List(t.Context(), sess.ID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	var hook *message.HookContent
+	for _, part := range msgs[0].Parts {
+		if hc, ok := part.(message.HookContent); ok {
+			hook = &hc
+		}
+	}
+	require.NotNil(t, hook, "the run must be recorded as a HookContent message")
+	require.Equal(t, hooks.EventSessionStart, hook.Event)
+	require.Len(t, hook.Hooks, 1)
+}
+
+// TestFireSessionStartSkipsAfterFirstPrompt pins the negative branch: once
+// the session has messages, no further prompt fires the event.
+func TestFireSessionStartSkipsAfterFirstPrompt(t *testing.T) {
+	c, logFile := newSessionStartCoordinator(t)
+	sess, err := c.sessions.Create(t.Context(), "New Session")
+	require.NoError(t, err)
+
+	_, err = c.messages.Create(t.Context(), sess.ID, message.CreateMessageParams{
+		Role:  message.User,
+		Parts: []message.ContentPart{message.TextContent{Text: "first prompt"}},
+	})
+	require.NoError(t, err)
+	updated, err := c.sessions.Get(t.Context(), sess.ID)
+	require.NoError(t, err)
+	if updated.MessageCount == 0 {
+		// The row's count is the gate; force it so the test pins the branch
+		// regardless of how Create updates it.
+		updated.MessageCount = 1
+		_, err = c.sessions.Save(t.Context(), updated)
+		require.NoError(t, err)
+	}
+
+	c.fireSessionStart(t.Context(), sess.ID)
+
+	_, err = os.Stat(logFile)
+	require.True(t, os.IsNotExist(err), "no hook may run once the session has messages")
 }

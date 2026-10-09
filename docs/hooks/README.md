@@ -160,7 +160,7 @@ wins when rewriting input, but first deny wins when blocking.
 
 ## Events
 
-Here are the events you can hook into (spoiler: there's currently just one):
+Here are the events you can hook into:
 
 ### PreToolUse
 
@@ -183,6 +183,22 @@ agent spawn sub-agents" still works.
 
 Hooks are keyed by event name. Only `command` is required, and you can omit
 `matcher` to match all tools.
+
+### Lifecycle events
+
+These events fire around session and turn boundaries. They are informational:
+their decisions do not block anything, and their runs appear in the chat
+transcript with a bracket tag.
+
+| Event             | When it fires                                             | Tag  |
+|-------------------|-----------------------------------------------------------|------|
+| `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[NS]` |
+| `SessionSwitch`   | The displayed session changes (status line only)          | `[SS]` |
+| `PromptSubmitted` | Every prompt, before the turn starts                      | `[PS]` |
+| `AgentFinished`   | Every completed turn                                      | `[AF]` |
+
+Lifecycle hooks match without a matcher; set `command` only. The hook receives
+the event payload on stdin (see below).
 
 ## Building Hooks
 
@@ -623,6 +639,40 @@ Extends the common payload:
   "tool_input": {
     "command": "npm test",
   },
+}
+```
+
+### Stdin payload — lifecycle events
+
+Extends the common payload. `SessionStart`, `PromptSubmitted`, and
+`AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
+additionally carries `prompt`; `SessionSwitch` carries `previous_session`
+and `new_session` (either side is `null` when the transition has no prior or
+next session).
+
+```jsonc
+{
+  // ...common fields...
+
+  // object | null. The abandoned session on a switch.
+  "previous_session": { /* see below */ },
+
+  // object | null. The newly active session on a switch.
+  "new_session": { /* see below */ },
+
+  // object. The started, prompted, or finished session snapshot.
+  "session": {
+    "id": "313909e",
+    "title": "Fix the flaky test",
+    "message_count": 4,
+    "prompt_tokens": 12000,
+    "completion_tokens": 800,
+    "cost": 0.05,
+    "updated_at": 1760000000,
+  },
+
+  // string. The prompt text (PromptSubmitted only).
+  "prompt": "fix the flaky test",
 }
 ```
 

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -813,10 +814,14 @@ type HookConfig struct {
 }
 
 // DisplayName returns the hook name for display purposes. It returns Name
-// when set, otherwise falls back to Command.
+// when set; otherwise the base name of Command when Command contains a
+// path separator, else Command unchanged (inline commands have no base).
 func (h *HookConfig) DisplayName() string {
 	if h.Name != "" {
 		return h.Name
+	}
+	if strings.Contains(h.Command, "/") {
+		return filepath.Base(h.Command)
 	}
 	return h.Command
 }

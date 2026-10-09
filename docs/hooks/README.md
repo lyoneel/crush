@@ -575,8 +575,9 @@ Each entry under a `hooks.<EventName>` array:
 
 ```jsonc
 {
-  // string. Optional. Friendly display name shown in the TUI. Falls back to
-  // command when omitted.
+  // string. Optional. Friendly display name shown in the TUI. When omitted,
+  // a command path shows its base name (./hooks/my-hook.sh renders as
+  // my-hook.sh); inline commands without a path show in full.
   "name": "no-rm-rf",
 
   // string. Optional. Regex tested against the tool name. Omit to match all.

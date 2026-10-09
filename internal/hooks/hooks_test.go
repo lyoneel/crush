@@ -3,6 +3,8 @@ package hooks
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -504,6 +506,20 @@ func TestRunnerHookNameUsesDisplayName(t *testing.T) {
 		require.Equal(t, DecisionAllow, result.Decision)
 		require.Len(t, result.Hooks, 1)
 		require.Equal(t, `echo '{"decision":"allow"}'`, result.Hooks[0].Name)
+	})
+
+	t.Run("path command base name is used when name is empty", func(t *testing.T) {
+		t.Parallel()
+		hookPath := filepath.Join(t.TempDir(), "rtk-rewrite.sh")
+		require.NoError(t, os.WriteFile(hookPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+		hookCfg := config.HookConfig{
+			Command: hookPath,
+		}
+		r := NewRunner([]config.HookConfig{hookCfg}, t.TempDir(), t.TempDir())
+		result, err := r.Run(context.Background(), EventPreToolUse, "sess", "bash", `{}`)
+		require.NoError(t, err)
+		require.Len(t, result.Hooks, 1)
+		require.Equal(t, "rtk-rewrite.sh", result.Hooks[0].Name)
 	})
 }
 

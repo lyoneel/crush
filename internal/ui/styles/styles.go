@@ -447,6 +447,7 @@ type Styles struct {
 
 		// Hooks
 		HookLabel        lipgloss.Style // "Hook" label
+		HookTag          lipgloss.Style // bracket tag for lifecycle events, e.g. [SS]
 		HookName         lipgloss.Style // Hook command name
 		HookMatcher      lipgloss.Style // Matcher regex pattern
 		HookArrow        lipgloss.Style // Arrow indicator

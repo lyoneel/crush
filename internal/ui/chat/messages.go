@@ -450,7 +450,7 @@ func ExtractMessageItems(sty *styles.Styles, msg *message.Message, toolResults m
 			var items []MessageItem
 			for _, part := range msg.Parts {
 				if hc, ok := part.(message.HookContent); ok {
-					items = append(items, NewHookItem(sty, hc))
+					items = append(items, NewHookItem(sty, msg.ID, hc))
 				}
 			}
 			if len(items) > 0 {

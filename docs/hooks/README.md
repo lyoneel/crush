@@ -198,10 +198,50 @@ outer sub-agent tool call itself _is_ hooked, so policy like "never let the
 agent spawn sub-agents" still works.
 
 When hooks ran for a tool call, the tool indicator in the transcript shows a
-`Hook [PT]` line above the result.
+`Hook [PreTU]` line above the result:
+
+```text
+Hook [PreTU] rtk-rewrite.sh ^bash$ → OK
+```
+
+A denied hook renders `Denied` and the reason in place of `OK`; a hook that
+crashed shows its exit code (`exit 5`) and a timed-out hook shows `Timeout`,
+both in yellow.
 
 Hooks are keyed by event name. Only `command` is required, and you can omit
 `matcher` to match all tools.
+
+### PostToolUse
+
+This hook fires after every completed tool call, once the result exists. Use
+it to audit, log, or append context the model should see alongside the tool
+result.
+
+**Matched against**: the tool name (e.g. `bash`, `edit`, `write`,
+`mcp_github_create_pull_request`).
+
+**Powers**: a synchronous PostToolUse hook can inject context (appended to
+the tool response content) and halt the turn with `halt: true`. `deny` and
+`updated_input` are ignored: the tool already ran, so a post deny cannot
+retract it and a post rewrite cannot change the input that was used. The
+decision still displays on the hook line.
+
+**Error path**: the hook also fires when the tool call returned an error; the
+error text rides in the payload as `tool_output`. The original error still
+returns to the model unchanged.
+
+**Scope**: like `PreToolUse`, PostToolUse only fires on the top-level agent's
+tool calls; sub-agents never fire hooks.
+
+When a synchronous PostToolUse hook ran for a tool call, the tool indicator
+in the transcript shows a `Hook [PostTU]` section below the `Hook [PreTU]`
+section in the result block. An all-async PostToolUse hook block renders
+nothing and logs only.
+
+```text
+Hook [PreTU] rtk-rewrite.sh ^bash$ → OK
+Hook [PostTU] audit-tool.sh → OK
+```
 
 ### Lifecycle events
 
@@ -209,15 +249,63 @@ These events fire around session and turn boundaries. They are informational:
 their decisions do not block anything, and their runs appear in the chat
 transcript with a bracket tag.
 
-| Event             | When it fires                                             | Tag  |
-|-------------------|-----------------------------------------------------------|------|
-| `SessionStart`    | The first prompt of a session, before `PromptSubmitted`   | `[ST]` |
-| `SessionSwitch`   | The displayed session changes (status line only)          | `[SS]` |
-| `PromptSubmitted` | Every prompt, before the turn starts                      | `[PS]` |
-| `AgentFinished`   | Every completed turn                                      | `[AF]` |
+| Event              | When it fires                                       | Tag       |
+|--------------------|-----------------------------------------------------|-----------|
+| `PreSession`       | The first prompt of a session, before `PrePrompt`   | `[PreSE]` |
+| `PreSessionSwitch` | The displayed session changes (status line only)    | `[PreSS]` |
+| `PrePrompt`        | Every prompt, before the turn dispatches            | `[PrePR]` |
+| `PostPrompt`       | Every prompt, after the user message is persisted   | `[PostPR]` |
+| `PostResponse`     | Every completed turn                                | `[PostRE]` |
 
 Lifecycle hooks match without a matcher; set `command` only. The hook receives
 the event payload on stdin (see below).
+
+Each lifecycle run renders one line per hook with a leading completion glyph
+that separates it from the inline tool indicators above:
+
+```text
+✓ Hook [PrePR] prompt-submitted.sh → OK
+✓ Hook [PostRE] agent-finished.sh → OK
+```
+
+A run that failed shows a yellow cross with the reason: `× Hook [PrePR]
+log.sh → exit 5`, or `→ Timeout` when the run exceeded its `timeout`. The
+lines appear in the transcript when the run completes, even for `async: true`
+hooks: the turn does not wait for them, but the completion still lands in the
+chat as it happens.
+
+An `async: true` hook also renders while it runs. The fire writes a pending
+line immediately, with the same green pending dot the bash tool uses, and the
+line updates in place when the run completes:
+
+```text
+● Hook [PrePR] slow-notify.sh        (while the script runs)
+✓ Hook [PrePR] slow-notify.sh → OK   (same line, after it exits)
+```
+
+A synchronous hook skips the pending state: it blocks the turn under its
+`timeout`, so its line only ever appears completed.
+
+### Sync versus async
+
+Every hook entry accepts an `async` field. The default is `false`
+(synchronous): the turn or tool call waits for the hook under the hook's
+`timeout` (default 30 seconds). With `async: true` the hook runs
+fire-and-forget: the turn proceeds without waiting, decisions are ignored,
+and the run still lands in the transcript.
+
+The field applies to every event, including `PreToolUse`: an async PreToolUse
+hook cannot deny, halt, allow, or rewrite input, and the tool proceeds on the
+original input.
+
+### Tags
+
+Each hook line shows the event as a bracket tag built from a `Pre`/`Post`/`On`
+prefix plus 2-3 uppercase letters (example: `PreToolUse` → `[PreTU]`). The
+`On` prefix is reserved for future events. Transcript records written before
+the event rename still render with their legacy two-letter tags:
+`SessionStart` → `[ST]`, `SessionSwitch` → `[SS]`, `PromptSubmitted` →
+`[PS]`, `AgentFinished` → `[AF]`.
 
 ## Building Hooks
 
@@ -653,9 +741,10 @@ Present in every hook event:
 }
 ```
 
-### Stdin payload — PreToolUse
+### Stdin payload — tool events
 
-Extends the common payload:
+Extends the common payload. `PreToolUse` carries `tool_name` and `tool_input`;
+`PostToolUse` additionally carries `tool_output`:
 
 ```jsonc
 {
@@ -668,16 +757,22 @@ Extends the common payload:
   "tool_input": {
     "command": "npm test",
   },
+
+  // string. The tool result text (PostToolUse only); the error text when
+  // the tool call failed.
+  "tool_output": "14 tests passed",
 }
 ```
 
 ### Stdin payload — lifecycle events
 
-Extends the common payload. `SessionStart`, `PromptSubmitted`,
-and `AgentFinished` carry the session snapshot in `session`; `PromptSubmitted`
-additionally carries `prompt`; `SessionSwitch` carries `previous_session`
+Extends the common payload. `PreSession`, `PrePrompt`, `PostPrompt`,
+and `PostResponse` carry the session snapshot in `session`; `PreSession`,
+`PrePrompt`, and `PostPrompt` additionally carry `prompt`; `PreSessionSwitch`
+carries `previous_session`
 and `new_session` (either side is `null` when the transition has no prior or
-next session).
+next session); `PostResponse` carries `response`, the final assistant text of
+the turn (empty when the turn produced no assistant message).
 
 ```jsonc
 {
@@ -700,8 +795,11 @@ next session).
     "updated_at": 1760000000,
   },
 
-  // string. The prompt text (PromptSubmitted only).
+  // string. The prompt text (PreSession, PrePrompt, and PostPrompt).
   "prompt": "fix the flaky test",
+
+  // string. The final assistant text of the turn (PostResponse only).
+  "response": "The test is fixed.",
 }
 ```
 

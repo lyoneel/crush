@@ -48,7 +48,7 @@ func newTestModels(modelType ModelType) *Models {
 		key.WithHelp("enter", "confirm"),
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
-		key.WithKeys("shift+enter", "ctrl+j"),
+		key.WithKeys("shift+enter"),
 		key.WithHelp("shift+enter", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(
@@ -107,15 +107,14 @@ func TestModelsEnterDoesNotApplyBoth(t *testing.T) {
 	require.False(t, selected.ReAuthenticate)
 }
 
-func TestModelsCtrlJAppliesBoth(t *testing.T) {
+func TestModelsCtrlJDoesNotApplyBoth(t *testing.T) {
 	t.Parallel()
 
 	m := newTestModels(ModelTypeLarge)
 
 	action := m.HandleMsg(tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl})
-	selected, ok := action.(ActionSelectModel)
-	require.True(t, ok)
-	require.True(t, selected.ApplyBoth)
+	_, ok := action.(ActionSelectModel)
+	require.False(t, ok)
 }
 
 func TestModelsCtrlYDoesNotApplyBoth(t *testing.T) {

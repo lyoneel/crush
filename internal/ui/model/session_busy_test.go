@@ -41,6 +41,9 @@ type countingWorkspace struct {
 	mcpStates      map[string]mcp.ClientInfo
 	mcpPendingAuth []mcp.PendingAuthServer
 
+	// sidebarMinimalismCalls records SetSidebarMinimalism persistence calls.
+	sidebarMinimalismCalls []bool
+
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -100,6 +103,11 @@ func (w *countingWorkspace) LSPGetStates() map[string]workspace.LSPClientInfo {
 func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCounts {
 	w.lspDiagCalls++
 	return w.lspDiags[name]
+}
+
+func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) error {
+	w.sidebarMinimalismCalls = append(w.sidebarMinimalismCalls, enabled)
+	return nil
 }
 
 func (w *countingWorkspace) MCPGetStates() map[string]mcp.ClientInfo {

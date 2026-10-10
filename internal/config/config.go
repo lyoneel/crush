@@ -349,6 +349,10 @@ type TUIOptions struct {
 	Scrollbar   string      `json:"scrollbar,omitempty" jsonschema:"description=Chat scrollbar visibility,enum=default,enum=always,enum=never,default=default"`
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
+	// SidebarMinimalism hides disabled MCPs and LSPs that never
+	// activated from the sidebar. The nil pointer and the unset field
+	// both mean enabled, the default.
+	SidebarMinimalism *bool `json:"sidebar_minimalism,omitempty" jsonschema:"description=Hide disabled MCPs and LSPs that never activated in the sidebar,default=true"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -356,6 +360,13 @@ type TUIOptions struct {
 // without unwrapping either.
 func (t *TUIOptions) IsTransparent() bool {
 	return t != nil && t.Transparent != nil && *t.Transparent
+}
+
+// IsSidebarMinimalism reports whether the sidebar hides disabled MCPs and
+// never-activated LSPs. The nil receiver and the unset pointer both mean
+// enabled, so callers can ask without unwrapping either.
+func (t *TUIOptions) IsSidebarMinimalism() bool {
+	return t == nil || t.SidebarMinimalism == nil || *t.SidebarMinimalism
 }
 
 // UnmarshalJSON tolerates the legacy string form of the "theme" field.

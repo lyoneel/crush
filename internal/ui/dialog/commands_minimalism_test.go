@@ -54,7 +54,7 @@ func TestCommandsSidebarMinimalismItemWired(t *testing.T) {
 		}
 	}
 	require.True(t, foundToggle, "the Toggle Sidebar item must exist")
-	require.True(t, foundMinimalism, "the Toggle Compact Sidebar item must exist")
+	require.True(t, foundMinimalism, "the Toggle Minimalist Sidebar item must exist")
 	require.True(t, minimalismAfterToggle, "the minimalism item must sit directly below Toggle Sidebar")
 }
 

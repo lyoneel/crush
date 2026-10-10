@@ -6,10 +6,10 @@
 > replace or deviate from the original project. I use it for my own
 > needs, and I test changes to the program here. Changes that become
 > stable enough go to the upstream project. When upstream publishes a
-> new release, this fork gets the same update. The fork is usually
-> stable, and you can test it freely, but I strongly recommend that
-> you do not use it in production. If you build it, use a custom
-> binary name, for example `crushly`.
+> new release, this fork gets the same update. I use this fork as my
+> daily driver. It is usually stable, and you can test it freely, but
+> I strongly recommend that you do not use it in production. If you
+> build it, use a custom binary name, for example `crushly`.
 
 ## Fork features
 

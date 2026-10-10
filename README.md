@@ -1,5 +1,40 @@
 # Crush
 
+> [!NOTE]
+> **Fork disclaimer.** This is a personal fork of
+> [Crush](https://github.com/charmbracelet/crush). It does not try to
+> replace or deviate from the original project. I use it for my own
+> needs, and I test changes to the program here. Changes that become
+> stable enough go to the upstream project. When upstream publishes a
+> new release, this fork gets the same update. The fork is usually
+> stable, and you can test it freely, but I strongly recommend that
+> you do not use it in production. If you build it, use a custom
+> binary name, for example `crushly`.
+
+## Fork features
+
+The upstream README below stays untouched. This fork adds:
+
+1. Hypercredit balance for gateway-served Hyper models: upstream
+   shows it only on the direct `hyper` provider, the fork also shows
+   it for models served through a gateway under `Hyper/` model ids
+   or `/hyper/` path segments (matched in any letter case)
+2. User lifecycle hooks (`PreSessionSwitch`, `PrePrompt`, `PostPrompt`,
+   `PostResponse`, `PreToolUse`, `PostToolUse`) with synchronous and
+   asynchronous (`async: true`) runs
+3. Model context usage in every hook payload and hook environment
+4. Small model display with its enforced reasoning effort
+5. Real model metadata from gateway model discovery: context window,
+   pricing, and reasoning capabilities
+6. Fork build version stamp, for example `v0.98.1-ly-N`
+7. MCP capability counts in the LSP count style
+8. Select-both model binding: confirm the chosen model for the large
+   and the small task model in one action
+
+The rest of this README is the upstream README, unmodified.
+
+---
+
 <p align="center">
     <a href="https://stuff.charm.sh/crush/charm-crush.png"><img width="450" alt="Charm Crush Logo" src="https://github.com/user-attachments/assets/cf8ca3ce-8b02-43f0-9d0f-5a331488da4b" /></a><br />
     <a href="https://github.com/charmbracelet/crush/releases"><img src="https://img.shields.io/github/release/charmbracelet/crush" alt="Latest Release"></a>

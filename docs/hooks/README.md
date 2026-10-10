@@ -160,7 +160,7 @@ wins when rewriting input, but first deny wins when blocking.
 
 ## Events
 
-Here are the events you can hook into:
+Here are the events you can hook into (spoiler: there's currently just one):
 
 ### PreToolUse
 
@@ -181,118 +181,8 @@ interception so a single delegated turn doesn't trigger your hook N times. The
 outer sub-agent tool call itself _is_ hooked, so policy like "never let the
 agent spawn sub-agents" still works.
 
-When hooks ran for a tool call, the tool indicator in the transcript shows a
-`Hook [PreTU]` line above the result:
-
-```text
-Hook [PreTU] rtk-rewrite.sh ^bash$ → OK
-```
-
-A denied hook renders `Denied` and the reason in place of `OK`; a hook that
-crashed shows its exit code (`exit 5`) and a timed-out hook shows `Timeout`,
-both in yellow.
-
 Hooks are keyed by event name. Only `command` is required, and you can omit
 `matcher` to match all tools.
-
-### PostToolUse
-
-This hook fires after every completed tool call, once the result exists. Use
-it to audit, log, or append context the model should see alongside the tool
-result.
-
-**Matched against**: the tool name (e.g. `bash`, `edit`, `write`,
-`mcp_github_create_pull_request`).
-
-**Powers**: a synchronous PostToolUse hook can inject context (appended to
-the tool response content) and halt the turn with `halt: true`. `deny` and
-`updated_input` are ignored: the tool already ran, so a post deny cannot
-retract it and a post rewrite cannot change the input that was used. The
-decision still displays on the hook line.
-
-**Error path**: the hook also fires when the tool call returned an error; the
-error text rides in the payload as `tool_output`. The original error still
-returns to the model unchanged.
-
-**Scope**: like `PreToolUse`, PostToolUse only fires on the top-level agent's
-tool calls; sub-agents never fire hooks.
-
-When a synchronous PostToolUse hook ran for a tool call, the tool indicator
-in the transcript shows a `Hook [PostTU]` section below the `Hook [PreTU]`
-section in the result block. An all-async PostToolUse hook block renders
-nothing and logs only.
-
-```text
-Hook [PreTU] rtk-rewrite.sh ^bash$ → OK
-Hook [PostTU] audit-tool.sh → OK
-```
-
-### Lifecycle events
-
-These events fire around session and turn boundaries. They are informational:
-their decisions do not block anything, and their runs appear in the chat
-transcript with a bracket tag.
-
-| Event              | When it fires                                       | Tag       |
-|--------------------|-----------------------------------------------------|-----------|
-| `PreSession`       | The first prompt of a session, before `PrePrompt`   | `[PreSE]` |
-| `PreSessionSwitch` | The displayed session changes                       | `[PreSS]` |
-| `PrePrompt`        | Every prompt, before the turn dispatches            | `[PrePR]` |
-| `PostPrompt`       | Every prompt, after the user message is persisted   | `[PostPR]` |
-| `PostResponse`     | Every completed turn                                | `[PostRE]` |
-
-Lifecycle hooks match without a matcher; set `command` only. The hook receives
-the event payload on stdin (see below).
-
-Each lifecycle run renders one line per hook with a leading completion glyph
-that separates it from the inline tool indicators above:
-
-```text
-✓ Hook [PrePR] prompt-submitted.sh → OK
-✓ Hook [PostRE] agent-finished.sh → OK
-```
-
-A run that failed shows a yellow cross with the reason: `× Hook [PrePR]
-log.sh → exit 5`, or `→ Timeout` when the run exceeded its `timeout`. The
-lines appear in the transcript when the run completes, even for `async: true`
-hooks: the turn does not wait for them, but the completion still lands in the
-chat as it happens.
-
-An `async: true` hook also renders while it runs. The fire writes a pending
-line immediately, with the same green pending dot the bash tool uses, and the
-line updates in place when the run completes. For `PreSessionSwitch` this
-means the pending line appears inside the newly opened session, before any
-prompt is sent, and turns into the result line when the run completes:
-
-
-```text
-● Hook [PrePR] slow-notify.sh        (while the script runs)
-✓ Hook [PrePR] slow-notify.sh → OK   (same line, after it exits)
-```
-
-A synchronous hook skips the pending state: it blocks the turn under its
-`timeout`, so its line only ever appears completed.
-
-### Sync versus async
-
-Every hook entry accepts an `async` field. The default is `false`
-(synchronous): the turn or tool call waits for the hook under the hook's
-`timeout` (default 30 seconds). With `async: true` the hook runs
-fire-and-forget: the turn proceeds without waiting, decisions are ignored,
-and the run still lands in the transcript.
-
-The field applies to every event, including `PreToolUse`: an async PreToolUse
-hook cannot deny, halt, allow, or rewrite input, and the tool proceeds on the
-original input.
-
-### Tags
-
-Each hook line shows the event as a bracket tag built from a `Pre`/`Post`/`On`
-prefix plus 2-3 uppercase letters (example: `PreToolUse` → `[PreTU]`). The
-`On` prefix is reserved for future events. Transcript records written before
-the event rename still render with their legacy two-letter tags:
-`SessionStart` → `[ST]`, `SessionSwitch` → `[SS]`, `PromptSubmitted` →
-`[PS]`, `AgentFinished` → `[AF]`.
 
 ## Building Hooks
 
@@ -338,9 +228,6 @@ The available environment variables are:
 | `CRUSH_PROJECT_DIR`          | Project root directory.                        |
 | `CRUSH_TOOL_INPUT_COMMAND`   | For `bash` calls: the shell command being run. |
 | `CRUSH_TOOL_INPUT_FILE_PATH` | For file tools: the target file path.          |
-| `CRUSH_MODEL_ID`             | Catalog id of the model serving the turn.      |
-| `CRUSH_CONTEXT_WINDOW`       | The model's context window in tokens (0 unknown). |
-| `CRUSH_ESTIMATED_USAGE`      | `true` when the session token counters are estimates. |
 
 The `CRUSH`, `AGENT`, and `AI_AGENT` markers are also set by the `bash`
 tool, so a script can detect "am I running under Crush?" the same way in
@@ -688,9 +575,8 @@ Each entry under a `hooks.<EventName>` array:
 
 ```jsonc
 {
-  // string. Optional. Friendly display name shown in the TUI. When omitted,
-  // a command path shows its base name (./hooks/my-hook.sh renders as
-  // my-hook.sh); inline commands without a path show in full.
+  // string. Optional. Friendly display name shown in the TUI. Falls back to
+  // command when omitted.
   "name": "no-rm-rf",
 
   // string. Optional. Regex tested against the tool name. Omit to match all.
@@ -721,42 +607,9 @@ Present in every hook event:
 }
 ```
 
-### Stdin payload — context usage (common, fork)
+### Stdin payload — PreToolUse
 
-Present in every hook event. The whole `context_usage` object is absent when
-the model is unknown (for example a hook that fires before the first model
-call resolves). `context_window` is `0` when the model does not publish a
-window: treat `0` as unknown, not as an empty context.
-
-```jsonc
-{
-  // ...common fields...
-
-  // object. Model context snapshot for the turn.
-  "context_usage": {
-    // string. Catalog id of the model serving the turn.
-    "model_id": "glm-5.3-flash",
-
-    // number. The model's context window in tokens; 0 when unknown.
-    "context_window": 200000,
-
-    // boolean. True when the session token counters are estimates
-    // (shown as "~" in the UI header).
-    "estimated_usage": true,
-  },
-}
-```
-
-The same values ride the environment as `CRUSH_MODEL_ID`,
-`CRUSH_CONTEXT_WINDOW`, and `CRUSH_ESTIMATED_USAGE`; all three are unset
-when the snapshot is absent. Compute the occupied share in the script
-from the stdin fields: `prompt_tokens + completion_tokens` over
-`context_window`.
-
-### Stdin payload — tool events
-
-Extends the common payload. `PreToolUse` carries `tool_name` and `tool_input`;
-`PostToolUse` additionally carries `tool_output`:
+Extends the common payload:
 
 ```jsonc
 {
@@ -769,50 +622,6 @@ Extends the common payload. `PreToolUse` carries `tool_name` and `tool_input`;
   "tool_input": {
     "command": "npm test",
   },
-
-  // string. The tool result text (PostToolUse only); the error text when
-  // the tool call failed.
-  "tool_output": "14 tests passed",
-}
-```
-
-### Stdin payload — lifecycle events
-
-Extends the common payload and the common `context_usage` snapshot
-(see above). `PreSession`, `PrePrompt`, `PostPrompt`,
-and `PostResponse` carry the session snapshot in `session`; `PreSession`,
-`PrePrompt`, and `PostPrompt` additionally carry `prompt`; `PreSessionSwitch`
-carries `previous_session`
-and `new_session` (either side is `null` when the transition has no prior or
-next session); `PostResponse` carries `response`, the final assistant text of
-the turn (empty when the turn produced no assistant message).
-
-```jsonc
-{
-  // ...common fields...
-
-  // object | null. The abandoned session on a switch.
-  "previous_session": { /* see below */ },
-
-  // object | null. The newly active session on a switch.
-  "new_session": { /* see below */ },
-
-  // object. The created, started, prompted, or finished session snapshot.
-  "session": {
-    "id": "313909e",
-    "title": "Fix the flaky test",
-    "message_count": 4,
-    "prompt_tokens": 12000,
-    "completion_tokens": 800,
-    "cost": 0.05,
-    "updated_at": 1760000000,
-  },
-
-  // string. The prompt text (PreSession, PrePrompt, and PostPrompt).
-  "prompt": "fix the flaky test",
-
-  // string. The final assistant text of the turn (PostResponse only).
-  "response": "The test is fixed.",
 }
 ```
 

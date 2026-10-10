@@ -130,6 +130,10 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 		key.WithKeys("shift+enter", "ctrl+j"),
 		key.WithHelp("⇧+⏎", "select both"),
 	)
+	m.keyMap.SelectBoth = key.NewBinding(
+		key.WithKeys("shift+enter", "ctrl+j"),
+		key.WithHelp("shift+enter", "select both"),
+	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
 		key.WithHelp("Ctl+e", "edit"),

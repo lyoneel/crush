@@ -597,6 +597,7 @@ type Styles struct {
 		Help lipgloss.Style
 
 		// Mode badges shown before the help hints.
+		ModeBadgeStd  lipgloss.Style
 		ModeBadgePlan lipgloss.Style
 		ModeBadgeYolo lipgloss.Style
 

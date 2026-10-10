@@ -525,7 +525,7 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	)
 	ta.KeyMap.SelectAll = key.NewBinding(
 		key.WithKeys("ctrl+shift+a"),
-		key.WithHelp("ctrl+shift+a", "select all"),
+		key.WithHelp("⌃⇧a", "select all"),
 	)
 	// Copying is handled by crush's keymap (Editor.CopySelection) so it can
 	// use crush's clipboard backend and user feedback; disable the
@@ -1189,8 +1189,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyboardEnhancementsMsg:
 		m.keyenh = msg
 		if msg.SupportsKeyDisambiguation() {
-			m.keyMap.Models.SetHelp("ctrl+m", "models")
-			m.keyMap.Editor.Newline.SetHelp("shift+enter", "newline")
+			m.keyMap.Models.SetHelp("⌃m", "models")
+			m.keyMap.Editor.Newline.SetHelp("⇧ ⏎", "newline")
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
@@ -3957,7 +3957,7 @@ func (m *UI) ShortHelp() []key.Binding {
 	tab := k.Tab
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ctrl+p", "commands")
+		commands.SetHelp("/ or ⌃p", "commands")
 	}
 
 	switch m.state {
@@ -3977,7 +3977,7 @@ func (m *UI) ShortHelp() []key.Binding {
 
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4068,12 +4068,12 @@ func (m *UI) FullHelp() [][]key.Binding {
 	var binds [][]key.Binding
 	k := &m.keyMap
 	help := k.Help
-	help.SetHelp("ctrl+g", "less")
+	help.SetHelp("⌃g", "less")
 	hasAttachments := len(m.attachments.List()) > 0
 	hasSession := m.hasSession()
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ctrl+p", "commands")
+		commands.SetHelp("/ or ⌃p", "commands")
 	}
 
 	switch m.state {
@@ -4098,7 +4098,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 		tab := k.Tab
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}

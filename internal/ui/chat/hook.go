@@ -86,6 +86,10 @@ func (h *HookItem) FilterValue() string { return h.event + " hook" }
 // Finished implements list.Item: the run record is static.
 func (h *HookItem) Finished() bool { return true }
 
+// NoGap implements list.NoGapItem: consecutive hook-run lines render as
+// one block. The gap to any other item kind is unchanged.
+func (h *HookItem) NoGap() bool { return true }
+
 // HandleKeyEvent implements keyboard handling; hook items take no input.
 func (h *HookItem) HandleKeyEvent(_ tea.KeyMsg) (bool, tea.Cmd) { return false, nil }
 

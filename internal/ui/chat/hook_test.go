@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
+	"github.com/charmbracelet/crush/internal/ui/list"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
@@ -313,4 +314,47 @@ func TestHookLabelColumnAlignment(t *testing.T) {
 		"the inline label must start in the same column as the lifecycle label")
 	require.True(t, strings.HasPrefix(toolLine, "  Hook [PreTU]"),
 		"the inline line indents by the glyph's two cells")
+}
+
+// TestHookItemsAdjacentNoGap pins that consecutive hook items render as
+// one block: the list-level gap row is suppressed between hook items,
+// whatever their event types, while a non-hook neighbor keeps its gap.
+func TestHookItemsAdjacentNoGap(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+	first := NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "first.sh", Decision: "none"}},
+	})
+	second := NewHookItem(&sty, "msg-2", message.HookContent{
+		Event: "PostResponse",
+		Hooks: []message.HookRun{{Event: "PostResponse", Name: "second.sh", Decision: "none"}},
+	})
+
+	l := list.NewList(first, second)
+	l.SetSize(100, 20)
+	l.SetGap(1)
+
+	out := ansi.Strip(l.Render())
+	lines := strings.Split(out, "\n")
+	hookLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.Contains(line, "Hook") {
+			hookLines = append(hookLines, line)
+		}
+	}
+	require.Len(t, hookLines, 2, "both hook lines render")
+	firstIdx := -1
+	for i, line := range lines {
+		if strings.Contains(line, "first.sh") {
+			firstIdx = i
+			break
+		}
+	}
+	require.GreaterOrEqual(t, firstIdx, 0)
+	require.False(t, strings.Contains(lines[firstIdx+1], "Hook") && lines[firstIdx+1] == "",
+		"no gap row may sit between two hook lines")
+	require.True(t, strings.Contains(lines[firstIdx+1], "Hook"),
+		"the second hook line follows immediately after the first")
 }

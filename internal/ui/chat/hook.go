@@ -118,7 +118,7 @@ func (h *HookItem) RawRender(width int) string {
 	if err != nil {
 		return ansi.Truncate(h.event, max(width, 1), "…")
 	}
-	body := toolOutputHookIndicator(h.sty, string(metadata), width)
+	body := toolOutputHookIndicator(h.sty, string(metadata), width, 0)
 	if body == "" {
 		return h.sty.Tool.HookLabel.Render(strings.ToUpper(h.event[:1]) + h.event[1:] + " hooks")
 	}

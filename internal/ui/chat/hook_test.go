@@ -234,7 +234,7 @@ func TestHookCompletionGlyph(t *testing.T) {
 			HookCount: 1,
 			Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Decision: "allow"}},
 		}
-		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(meta, nil), 100))
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(meta, nil), 100, 0))
 		require.Contains(t, out, "Hook [PreTU]")
 		require.False(t, strings.Contains(out, styles.ToolSuccess+" Hook"),
 			"the inline PreToolUse line must not carry a completion glyph")
@@ -354,7 +354,7 @@ func TestHookLabelColumnAlignment(t *testing.T) {
 		HookCount: 1,
 		Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Matcher: "^bash$", Decision: "allow"}},
 	}
-	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), 100))
+	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), 100, 0))
 
 	// strings.Index is byte-based; strip everything from the label on to
 	// measure the label column in display cells.
@@ -387,12 +387,54 @@ func TestHookLabelColumnAlignmentNarrowWidth(t *testing.T) {
 		HookCount: 1,
 		Hooks:     []hooks.HookInfo{{Name: "session-start.sh", Decision: "allow"}},
 	}
-	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), width))
+	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), width, 0))
 
 	labelCol := ansi.StringWidth(strings.SplitN(lifecycle, "Hook", 2)[0])
 	require.Equal(t, 2, labelCol, "the glyph-less lifecycle label keeps the two-cell indent")
 	require.Equal(t, labelCol, ansi.StringWidth(strings.SplitN(toolLine, "Hook", 2)[0]),
 		"the inline label must start in the same column")
+}
+
+// TestHookLabelColumnInsideToolItem pins the label-column contract when
+// the hook indicator renders inside a tool message item: the tool-call
+// border and padding already indent every item line by two cells, so
+// the inline hook line must not add its own indent on top of it. The
+// pre-fix code duplicated the indent and left the in-tool label two
+// cells right of the standalone hook item labels.
+func TestHookLabelColumnInsideToolItem(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	hookItem := NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PrePrompt",
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "notify.sh", Decision: "none", Async: true}},
+	})
+	tc := message.ToolCall{ID: "tc1", Name: "bash", Input: `{"command":"ls"}`}
+	meta := &hooks.HookMetadata{
+		Event:     hooks.EventPreToolUse,
+		HookCount: 1,
+		Hooks:     []hooks.HookInfo{{Name: "rtk-rewrite.sh", Matcher: "^bash$", Decision: "allow"}},
+	}
+	result := message.ToolResult{ToolCallID: "tc1", Metadata: hookMetaJSON(meta, nil), Content: "output"}
+	toolItem := newBaseToolMessageItem(&sty, tc, &result, &DefaultToolRenderContext{}, false)
+
+	l := list.NewList(hookItem, toolItem)
+	l.SetSize(120, 40)
+
+	hookLabel := ansi.Strip(hookItem.RawRender(120))
+	toolLine := ""
+	for _, line := range strings.Split(ansi.Strip(l.Render()), "\n") {
+		if strings.Contains(line, "Hook [PreTU]") {
+			toolLine = line
+		}
+	}
+	if line := strings.SplitN(toolLine, "Hook", 2)[0]; len(toolLine) > 0 {
+		hookCol := ansi.StringWidth(strings.SplitN(hookLabel, "Hook", 2)[0])
+		toolCol := ansi.StringWidth(line)
+		require.Equal(t, hookCol, toolCol,
+			"the in-tool hook label must start in the same column as the standalone hook label")
+	}
 }
 
 // TestHookItemsAdjacentNoGap pins that consecutive hook items render as

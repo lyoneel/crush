@@ -357,7 +357,7 @@ func (t *baseToolMessageItem) RawRender(width int) string {
 
 		// Prepend hook indicator if hooks ran for this tool call.
 		if t.result != nil {
-			if hookLine := toolOutputHookIndicator(t.sty, t.result.Metadata, toolItemWidth); hookLine != "" {
+			if hookLine := toolOutputHookIndicator(t.sty, t.result.Metadata, toolItemWidth, 2); hookLine != "" {
 				content = hookLine + "\n\n" + content
 			}
 		}
@@ -798,8 +798,11 @@ func toolOutputSkillContent(sty *styles.Styles, name, description string) string
 // toolOutputHookIndicator renders hook indicator lines from tool metadata.
 // Returns empty string if no hook metadata is present. Hook names are
 // sanitized (newlines replaced with ¶) and truncated to fit the available
-// horizontal space.
-func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) string {
+// horizontal space. wrapperIndent counts the left cells the composing
+// message item already provides (for example the tool-call border and
+// padding), so the glyph-less label column stays at the same absolute
+// column as the standalone hook item lines.
+func toolOutputHookIndicator(sty *styles.Styles, metadata string, width, wrapperIndent int) string {
 	if metadata == "" {
 		return ""
 	}
@@ -810,8 +813,8 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
 		return ""
 	}
-	pre := renderHookSection(sty, meta.Hook, width)
-	post := renderHookSection(sty, meta.PostHook, width)
+	pre := renderHookSection(sty, meta.Hook, width, wrapperIndent)
+	post := renderHookSection(sty, meta.PostHook, width, wrapperIndent)
 	switch {
 	case pre == "" && post == "":
 		return ""
@@ -826,7 +829,10 @@ func toolOutputHookIndicator(sty *styles.Styles, metadata string, width int) str
 
 // renderHookSection renders one hook metadata block (the PreToolUse hook
 // key or the PostToolUse post_hook key) as aligned indicator lines.
-func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) string {
+// wrapperIndent counts the left cells the composing message item adds to
+// every rendered line; the hook lines indent by the remainder of the
+// two-cell label column.
+func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width, wrapperIndent int) string {
 	if h == nil || len(h.Hooks) == 0 {
 		return ""
 	}
@@ -850,8 +856,8 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	if h.Event != hooks.EventPreToolUse && h.Event != hooks.EventPostToolUse {
 		lifecycle = true
 	}
-	if !lifecycle && width > 0 {
-		width -= 2
+	if wrapperIndent > 0 && width > 0 {
+		width -= wrapperIndent
 	}
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
@@ -923,7 +929,7 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, flush, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, flush, wrapperIndent, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -964,10 +970,10 @@ func isLikelyPath(s string) bool {
 // (for example "[PreTU]"); the tag may be empty. A lifecycle line
 // renders a leading status glyph only when the hook ran asynchronously:
 // a green pending dot while the run has not finished, else the
-// completion mark. Every glyph-less line keeps the same two-cell label
-// column as the glyped ones so all "Hook" labels line up; flush drops
-// that indent as the last narrow-width fallback.
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle, flush bool, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// completion mark. Every glyph-less line completes the two-cell label
+// column left over from wrapperIndent so all "Hook" labels line up;
+// flush drops that indent as the last narrow-width fallback.
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle, flush bool, wrapperIndent int, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -1011,9 +1017,10 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, li
 		head = glyphStyle.SetString(glyph).Render() + " " + head
 	} else if !flush {
 		// Glyph-less lines (synchronous hooks and inline indicator
-		// lines) indent by the glyph's two cells so every label starts
-		// in the same column.
-		head = "  " + head
+		// lines) complete the two-cell label column, minus whatever the
+		// composing item already indents, so every label starts in the
+		// same column.
+		head = strings.Repeat(" ", max(0, 2-wrapperIndent)) + head
 	}
 
 	if detail == "" {

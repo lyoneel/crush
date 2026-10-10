@@ -41,7 +41,7 @@ func newTestModels(modelType ModelType) *Models {
 
 	m.keyMap.Tab = key.NewBinding(
 		key.WithKeys("tab", "shift+tab"),
-		key.WithHelp("⇥/⇤", "toggle type"),
+		key.WithHelp("⇆", "toggle type"),
 	)
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),

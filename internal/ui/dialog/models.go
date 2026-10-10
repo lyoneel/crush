@@ -120,7 +120,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 
 	m.keyMap.Tab = key.NewBinding(
 		key.WithKeys("tab", "shift+tab"),
-		key.WithHelp("⇥/⇤", "toggle type"),
+		key.WithHelp("⇆", "toggle type"),
 	)
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),

@@ -417,7 +417,7 @@ type UI struct {
 	forceCompactMode bool
 
 	// sidebarMinimalism tracks whether the sidebar hides disabled MCPs and
-	// LSPs that never activated (the Toggle Compact Sidebar command)
+	// LSPs that never activated (the Toggle Minimalist Sidebar command)
 	sidebarMinimalism bool
 
 	// isCompact tracks whether we're currently in compact layout mode (either

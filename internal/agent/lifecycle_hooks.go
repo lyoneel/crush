@@ -159,10 +159,19 @@ const lifecycleHookTimeout = 30 * time.Second
 // by default and recorded in the transcript. When every configured hook
 // sets async: true the fire becomes fire-and-forget. Decisions are
 // ignored; a nil runner or an empty result records nothing.
-func fireLifecycleHookDefault(messages message.Service, cfg *config.ConfigStore, eventName, sessionID string, data hooks.SessionEventData) {
+// fireLifecycleHookDefault runs a lifecycle event's hooks, synchronous
+// by default and recorded in the transcript; async: true switches the
+// fire to fire-and-forget with an in-place updating transcript line.
+// Decisions are ignored; a nil runner or an empty result records
+// nothing. The usage source, when non-nil, resolves the model context
+// snapshot embedded in the hook payload.
+func fireLifecycleHookDefault(messages message.Service, cfg *config.ConfigStore, eventName, sessionID string, data hooks.SessionEventData, usageSource hooks.UsageSourceFunc) {
 	runner := lifecycleRunnerFromStore(cfg, eventName)
 	if runner == nil {
 		return
+	}
+	if usageSource != nil {
+		runner.SetUsageSource(usageSource)
 	}
 	if hooks.AllAsync(cfg.Config().Hooks[eventName]) {
 		fireRecordedLifecycleHook(messages, runner, eventName, sessionID, data)
@@ -183,5 +192,21 @@ func sessionPayload(s session.Session) *hooks.SessionPayload {
 		CompletionTokens: s.CompletionTokens,
 		Cost:             s.Cost,
 		UpdatedAt:        s.UpdatedAt,
+	}
+}
+
+// usageSourceFrom builds the hooks.UsageSource from a session snapshot
+// and the model serving the turn. Zero session or model means the
+// caller has nothing: the hook payload omits the context_usage field.
+func usageSourceFrom(s session.Session, model Model) hooks.UsageSource {
+	if s.ID == "" && model.CatwalkCfg.ID == "" {
+		return hooks.UsageSource{}
+	}
+	return hooks.UsageSource{
+		SessionPromptTokens:     s.PromptTokens,
+		SessionCompletionTokens: s.CompletionTokens,
+		SessionEstimatedUsage:   s.EstimatedUsage,
+		ModelID:                 model.CatwalkCfg.ID,
+		ModelContextWindow:      model.CatwalkCfg.ContextWindow,
 	}
 }

@@ -267,6 +267,24 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session, load loadSes
 	}
 	cwd := m.com.Workspace.WorkingDir()
 	runner := hooks.NewRunner(eventHooks, cwd, cwd)
+	// Fork: embed the model context snapshot in the payload. The model
+	// identity and window come from the agent model the workspace just
+	// refreshed; the token counters come from the session the switch is
+	// entering. An unknown model or new session omits context_usage.
+	if am := m.com.Workspace.AgentModel(); am.CatwalkCfg.ID != "" {
+		runner.SetUsageSource(func(string) hooks.UsageSource {
+			if next == nil {
+				return hooks.UsageSource{}
+			}
+			return hooks.UsageSource{
+				SessionPromptTokens:     next.PromptTokens,
+				SessionCompletionTokens: next.CompletionTokens,
+				SessionEstimatedUsage:   next.EstimatedUsage,
+				ModelID:                 am.CatwalkCfg.ID,
+				ModelContextWindow:      am.CatwalkCfg.ContextWindow,
+			}
+		})
+	}
 
 	var previousPayload, nextPayload *hooks.SessionPayload
 	if previous != nil {

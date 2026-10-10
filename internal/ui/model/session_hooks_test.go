@@ -22,6 +22,9 @@ type hookWorkspace struct {
 
 func (w hookWorkspace) Config() *config.Config { return w.cfg }
 func (w hookWorkspace) WorkingDir() string     { return tTempDirForHooks }
+func (w hookWorkspace) AgentModel() workspace.AgentModel {
+	return workspace.AgentModel{}
+}
 
 // tTempDirForHooks is set by the tests before the hook fires, because
 // the async goroutine reads WorkingDir off the workspace.

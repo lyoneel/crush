@@ -299,6 +299,26 @@ func (c *coordinator) RunAccepted(ctx context.Context, accept *AcceptedRun, sess
 	return c.run(ctx, accept, sessionID, prompt, attachments...)
 }
 
+// activeUsageSource builds a lazy model context snapshot resolver for
+// hook payloads: the session token counters come from the session
+// lookup of the event's session at fire time, the model identity and
+// context window from the active agent's current large model. A failed
+// session lookup yields the zero snapshot so the payload omits
+// context_usage entirely.
+func (c *coordinator) activeUsageSource() hooks.UsageSourceFunc {
+	return func(sessionID string) hooks.UsageSource {
+		sess, err := c.sessions.Get(context.WithoutCancel(context.Background()), sessionID)
+		if err != nil {
+			return hooks.UsageSource{}
+		}
+		agent, _ := c.activeAgent()
+		if agent == nil {
+			return hooks.UsageSource{}
+		}
+		return usageSourceFrom(sess, agent.Model())
+	}
+}
+
 // firePreSession fires the PreSession lifecycle hook on the first
 // prompt of a session, before PrePrompt runs for the same prompt.
 // The gate is "no user text message exists yet": hook-only transcript
@@ -313,6 +333,7 @@ func (c *coordinator) firePreSession(ctx context.Context, sessionID, prompt stri
 	if runner == nil {
 		return
 	}
+	runner.SetUsageSource(c.activeUsageSource())
 	msgs, err := c.messages.List(ctx, sessionID)
 	switch {
 	case err == nil && hasUserTextMessage(msgs):
@@ -349,9 +370,11 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 
 	// Fork: fire the PrePrompt lifecycle hook before the turn
 	// dispatches; synchronous by default, recorded in the transcript so
-	// the chat shows the run next to the prompt.
+	// the chat shows the run next to the prompt. The usage source
+	// resolves lazily at fire time so the payload sees the model chosen
+	// for this turn.
 	fireLifecycleHookDefault(c.messages, c.cfg, hooks.EventPrePrompt, sessionID,
-		hooks.SessionEventData{Prompt: prompt})
+		hooks.SessionEventData{Prompt: prompt}, c.activeUsageSource())
 
 	// MCP servers connect asynchronously (see mcp.Initialize).
 	//
@@ -915,13 +938,18 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	logFile := filepath.Join(c.cfg.Config().Options.DataDirectory, "logs", "crush.log")
 
 	// Build hook runners if PreToolUse or PostToolUse hooks are configured.
+	// The lazy usage source resolves at fire time: the session token
+	// counters come from the session lookup, the model identity and
+	// context window from the active agent's large model.
 	var hookRunner *hooks.Runner
 	if preToolHooks := c.cfg.Config().Hooks[hooks.EventPreToolUse]; len(preToolHooks) > 0 {
 		hookRunner = hooks.NewRunner(preToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
+		hookRunner.SetUsageSource(c.activeUsageSource())
 	}
 	var postToolRunner *hooks.Runner
 	if postToolHooks := c.cfg.Config().Hooks[hooks.EventPostToolUse]; len(postToolHooks) > 0 {
 		postToolRunner = hooks.NewRunner(postToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
+		postToolRunner.SetUsageSource(c.activeUsageSource())
 	}
 
 	allTools = append(

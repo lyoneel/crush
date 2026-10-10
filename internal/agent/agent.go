@@ -204,6 +204,17 @@ type activeCancel struct {
 	cancel context.CancelFunc
 }
 
+// usageSourceFunc resolves the model context snapshot for hook
+// payloads at fire time: the session token counters come from the
+// passed session snapshot, the model identity and context window from
+// the agent's current large model. A session without an ID yields the
+// zero snapshot so the payload omits context_usage entirely.
+func (a *sessionAgent) usageSourceFunc(sess session.Session) hooks.UsageSourceFunc {
+	return func(string) hooks.UsageSource {
+		return usageSourceFrom(sess, a.largeModel.Get())
+	}
+}
+
 type sessionAgent struct {
 	largeModel         *csync.Value[Model]
 	smallModel         *csync.Value[Model]
@@ -770,7 +781,8 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	// below the prompt message.
 	fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostPrompt,
 		call.SessionID,
-		hooks.SessionEventData{Prompt: call.Prompt, Session: sessionPayload(currentSession)})
+		hooks.SessionEventData{Prompt: call.Prompt, Session: sessionPayload(currentSession)},
+		a.usageSourceFunc(currentSession))
 
 	// Add the session to the context. The run context (genCtx) and its
 	// cancel func were already created and registered under the dispatch
@@ -904,7 +916,8 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				// prompt.
 				fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostPrompt,
 					call.SessionID,
-					hooks.SessionEventData{Prompt: queued.Prompt, Session: sessionPayload(currentSession)})
+					hooks.SessionEventData{Prompt: queued.Prompt, Session: sessionPayload(currentSession)},
+					a.usageSourceFunc(currentSession))
 				prepared.Messages = append(prepared.Messages, userMessage.ToAIMessage()...)
 			}
 
@@ -1325,7 +1338,8 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		currentAssistantText = currentAssistant.Content().String()
 	}
 	fireLifecycleHookDefault(a.messages, a.cfg, hooks.EventPostResponse, call.SessionID,
-		hooks.SessionEventData{Session: sessionPayload(currentSession), Response: currentAssistantText})
+		hooks.SessionEventData{Session: sessionPayload(currentSession), Response: currentAssistantText},
+		a.usageSourceFunc(currentSession))
 
 	// Send notification that agent has finished its turn (skip for
 	// nested/non-interactive sessions).

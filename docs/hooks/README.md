@@ -354,6 +354,9 @@ The available environment variables are:
 | `CRUSH_PROJECT_DIR`          | Project root directory.                        |
 | `CRUSH_TOOL_INPUT_COMMAND`   | For `bash` calls: the shell command being run. |
 | `CRUSH_TOOL_INPUT_FILE_PATH` | For file tools: the target file path.          |
+| `CRUSH_MODEL_ID`             | Catalog id of the model serving the turn.      |
+| `CRUSH_CONTEXT_WINDOW`       | The model's context window in tokens (0 unknown). |
+| `CRUSH_ESTIMATED_USAGE`      | `true` when the session token counters are estimates. |
 
 The `CRUSH`, `AGENT`, and `AI_AGENT` markers are also set by the `bash`
 tool, so a script can detect "am I running under Crush?" the same way in
@@ -744,6 +747,38 @@ Present in every hook event:
 }
 ```
 
+### Stdin payload — context usage (common, fork)
+
+Present in every hook event. The whole `context_usage` object is absent when
+the model is unknown (for example a hook that fires before the first model
+call resolves). `context_window` is `0` when the model does not publish a
+window: treat `0` as unknown, not as an empty context.
+
+```jsonc
+{
+  // ...common fields...
+
+  // object. Model context snapshot for the turn.
+  "context_usage": {
+    // string. Catalog id of the model serving the turn.
+    "model_id": "glm-5.3-flash",
+
+    // number. The model's context window in tokens; 0 when unknown.
+    "context_window": 200000,
+
+    // boolean. True when the session token counters are estimates
+    // (shown as "~" in the UI header).
+    "estimated_usage": true,
+  },
+}
+```
+
+The same values ride the environment as `CRUSH_MODEL_ID`,
+`CRUSH_CONTEXT_WINDOW`, and `CRUSH_ESTIMATED_USAGE`; all three are unset
+when the snapshot is absent. Compute the occupied share in the script
+from the stdin fields: `prompt_tokens + completion_tokens` over
+`context_window`.
+
 ### Stdin payload — tool events
 
 Extends the common payload. `PreToolUse` carries `tool_name` and `tool_input`;
@@ -769,7 +804,8 @@ Extends the common payload. `PreToolUse` carries `tool_name` and `tool_input`;
 
 ### Stdin payload — lifecycle events
 
-Extends the common payload. `PreSession`, `PrePrompt`, `PostPrompt`,
+Extends the common payload and the common `context_usage` snapshot
+(see above). `PreSession`, `PrePrompt`, `PostPrompt`,
 and `PostResponse` carry the session snapshot in `session`; `PreSession`,
 `PrePrompt`, and `PostPrompt` additionally carry `prompt`; `PreSessionSwitch`
 carries `previous_session`

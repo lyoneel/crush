@@ -91,12 +91,43 @@ type Resolver interface {
 }
 
 type modelsResponse struct {
-	Data []struct {
-		ID      string `json:"id"`
-		Object  string `json:"object"`
-		Created int64  `json:"created"`
-		OwnedBy string `json:"owned_by"`
-	} `json:"data"`
+	Data []discoveredModel `json:"data"`
+}
+
+// discoveredModel mirrors the OpenAI-compatible /models entry, plus the
+// optional `metadata` block several gateways attach (Hyper, NIM, and
+// friends) carrying the context window, output cap, capabilities, and
+// pricing metadata that /models alone would lose.
+type discoveredModel struct {
+	ID       string          `json:"id"`
+	Object   string          `json:"object"`
+	Created  int64           `json:"created"`
+	OwnedBy  string          `json:"owned_by"`
+	Metadata *discoveredMeta `json:"metadata,omitempty"`
+}
+
+// discoveredMeta is the shared metadata block. Fields the gateway
+// omits stay zero and the model keeps falling back to sensible
+// defaults.
+type discoveredMeta struct {
+	DisplayName     string             `json:"display_name,omitempty"`
+	ContextWindow   int64              `json:"context_window,omitempty"`
+	MaxOutputTokens int64              `json:"max_output_tokens,omitempty"`
+	Capabilities    discoveredCaps     `json:"capabilities,omitempty"`
+	Pricing         *discoveredPricing `json:"pricing,omitempty"`
+}
+
+type discoveredCaps struct {
+	FunctionCalling bool `json:"function_calling,omitempty"`
+	Reasoning       bool `json:"reasoning,omitempty"`
+	ToolChoice      bool `json:"tool_choice,omitempty"`
+}
+
+type discoveredPricing struct {
+	Currency           string  `json:"currency,omitempty"`
+	InputPerMtok       float64 `json:"input_per_mtok,omitempty"`
+	OutputPerMtok      float64 `json:"output_per_mtok,omitempty"`
+	CachedInputPerMtok float64 `json:"cached_input_per_mtok,omitempty"`
 }
 
 // DiscoverModels fetches available models from the provider's /models endpoint.
@@ -130,15 +161,35 @@ func DiscoverModels(ctx context.Context, cfg Config, resolver Resolver) ([]catwa
 	result := make([]catwalk.Model, len(cfg.ExistingModels))
 	copy(result, cfg.ExistingModels)
 
-	// Append discovered models not already in the list.
+	// Append discovered models not already in the list, mapping the
+	// gateway metadata block onto the catwalk fields when present.
 	for _, e := range modelsResp.Data {
 		if _, ok := existing[e.ID]; ok {
 			continue
 		}
-		result = append(result, catwalk.Model{
+		m := catwalk.Model{
 			ID:   e.ID,
 			Name: e.ID,
-		})
+		}
+		if e.Metadata != nil {
+			md := e.Metadata
+			if md.DisplayName != "" {
+				m.Name = md.DisplayName
+			}
+			m.ContextWindow = md.ContextWindow
+			m.DefaultMaxTokens = md.MaxOutputTokens
+			if md.Capabilities.Reasoning {
+				m.CanReason = true
+				m.ReasoningLevels = []string{"high"}
+				m.DefaultReasoningEffort = "high"
+			}
+			if md.Pricing != nil {
+				m.CostPer1MIn = md.Pricing.InputPerMtok
+				m.CostPer1MOut = md.Pricing.OutputPerMtok
+				m.CostPer1MInCached = md.Pricing.CachedInputPerMtok
+			}
+		}
+		result = append(result, m)
 	}
 
 	return result, nil

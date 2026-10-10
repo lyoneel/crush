@@ -34,10 +34,39 @@ type compiledHook struct {
 }
 
 // Runner executes hook commands and aggregates their results.
+// Runner executes hook commands and aggregates their results.
 type Runner struct {
 	hooks      []compiledHook
 	cwd        string
 	projectDir string
+	// usageSource lazily resolves the model context snapshot embedded
+	// in every payload. Nil means no snapshot: payloads carry no
+	// context_usage field.
+	usageSource UsageSourceFunc
+}
+
+// UsageSourceFunc resolves the model context snapshot for one hook
+// fire. It receives the session ID of the event and returns the zero
+// value when the snapshot is unavailable, in which case the payload
+// carries no context_usage field. Resolved once per fire, shared by
+// every hook in the batch.
+type UsageSourceFunc func(sessionID string) UsageSource
+
+// SetUsageSource attaches the lazy model context snapshot resolver.
+// Callers without a resolver leave the runner untouched.
+func (r *Runner) SetUsageSource(fn UsageSourceFunc) { r.usageSource = fn }
+
+// resolveUsage builds the payload snapshot once per fire. A nil source
+// or a zero result from the source yields no snapshot.
+func (r *Runner) resolveUsage(sessionID string) *ContextUsage {
+	if r.usageSource == nil {
+		return nil
+	}
+	src := r.usageSource(sessionID)
+	if src == (UsageSource{}) {
+		return nil
+	}
+	return BuildContextUsage(src)
 }
 
 // NewRunner creates a Runner from the given hook configs. Each hook's
@@ -106,8 +135,12 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 		deduped = append(deduped, h)
 	}
 
-	envVars := BuildEnv(eventName, toolName, sessionID, r.cwd, r.projectDir, toolInputJSON, "", "")
-	payload := BuildPayload(eventName, sessionID, r.cwd, toolName, toolInputJSON, toolOutput)
+	usage := r.resolveUsage(sessionID)
+	envVars := AppendUsageEnv(
+		BuildEnv(eventName, toolName, sessionID, r.cwd, r.projectDir, toolInputJSON, "", ""),
+		usage,
+	)
+	payload := BuildPayloadWithUsage(eventName, sessionID, r.cwd, toolName, toolInputJSON, toolOutput, usage)
 
 	results := make([]HookResult, len(deduped))
 	var wg sync.WaitGroup
@@ -172,8 +205,12 @@ func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, 
 	if data.New != nil {
 		newID = data.New.ID
 	}
-	envVars := BuildEnv(eventName, "", sessionID, r.cwd, r.projectDir, "", previousID, newID)
-	payload := BuildSessionEventPayload(eventName, sessionID, r.cwd, data)
+	usage := r.resolveUsage(sessionID)
+	envVars := AppendUsageEnv(
+		BuildEnv(eventName, "", sessionID, r.cwd, r.projectDir, "", previousID, newID),
+		usage,
+	)
+	payload := BuildSessionEventPayloadWithUsage(eventName, sessionID, r.cwd, data, usage)
 
 	results := make([]HookResult, len(deduped))
 	var wg sync.WaitGroup

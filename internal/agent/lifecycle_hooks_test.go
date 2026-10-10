@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
@@ -57,7 +58,7 @@ func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 	}
 
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, "sess-1",
-		hooks.SessionEventData{Prompt: "hello hook"})
+		hooks.SessionEventData{Prompt: "hello hook"}, nil)
 
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err, "a sync hook must finish before the fire returns")
@@ -77,7 +78,7 @@ func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 	}
 
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, "sess-1",
-		hooks.SessionEventData{Prompt: "hello hook"})
+		hooks.SessionEventData{Prompt: "hello hook"}, nil)
 
 	require.Eventually(t, func() bool {
 		data, err := os.ReadFile(logFile)
@@ -101,7 +102,7 @@ func TestFireLifecycleHookDefaultAsyncPendingThenDone(t *testing.T) {
 	require.NoError(t, err)
 
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, sess.ID,
-		hooks.SessionEventData{Prompt: "hello hook"})
+		hooks.SessionEventData{Prompt: "hello hook"}, nil)
 
 	var pendingID string
 	require.Eventually(t, func() bool {
@@ -294,4 +295,23 @@ func TestRunPostPromptRecorded(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"event":"PostPrompt"`)
 	require.Contains(t, string(data), `"prompt":"hello there"`)
+}
+
+// TestUsageSourceFrom pins the snapshot conversion: session counters and
+// model identity both ride; the empty form yields the zero source so
+// the payload omits context_usage.
+func TestUsageSourceFrom(t *testing.T) {
+	src := usageSourceFrom(session.Session{
+		ID:               "sess-1",
+		PromptTokens:     12000,
+		CompletionTokens: 800,
+		EstimatedUsage:   true,
+	}, Model{CatwalkCfg: catwalk.Model{ID: "glm-5.3-flash", ContextWindow: 200000}})
+	require.Equal(t, int64(12000), src.SessionPromptTokens)
+	require.Equal(t, int64(800), src.SessionCompletionTokens)
+	require.True(t, src.SessionEstimatedUsage)
+	require.Equal(t, "glm-5.3-flash", src.ModelID)
+	require.Equal(t, int64(200000), src.ModelContextWindow)
+
+	require.Equal(t, hooks.UsageSource{}, usageSourceFrom(session.Session{}, Model{}))
 }

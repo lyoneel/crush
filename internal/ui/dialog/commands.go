@@ -486,7 +486,12 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	// Only show toggle compact mode command if window width is larger than compact breakpoint (120)
 	if c.windowWidth >= sidebarCompactModeBreakpoint && c.hasSession {
 		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar", "Toggle Sidebar", "ctrl+b", ActionToggleCompactMode{}))
+	}
+	// The toggle commands below work without an active session, so they
+	// stay outside the session guard and only carry the width guard.
+	if c.windowWidth >= sidebarCompactModeBreakpoint {
 		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar_minimalism", "Toggle Minimalist Sidebar", "", ActionToggleSidebarMinimalism{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_hypercredits", "Toggle Hypercredits", "", ActionToggleHypercredits{}))
 	}
 	if c.hasSession {
 		cfgPrime := c.com.Config()

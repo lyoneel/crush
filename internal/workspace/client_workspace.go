@@ -575,6 +575,10 @@ func (w *ClientWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool)
 	return w.SetConfigField(scope, "options.tui.sidebar_minimalism", enabled)
 }
 
+func (w *ClientWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
+	return w.SetConfigField(scope, "options.tui.show_hypercredits", enabled)
+}
+
 func (w *ClientWorkspace) SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error {
 	err := w.client.SetProviderAPIKey(context.Background(), w.workspaceID(), scope, providerID, apiKey)
 	if err == nil {

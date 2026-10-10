@@ -383,6 +383,10 @@ func (w *AppWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) er
 	return w.store.SetSidebarMinimalism(scope, enabled)
 }
 
+func (w *AppWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
+	return w.store.SetShowHypercredits(scope, enabled)
+}
+
 func (w *AppWorkspace) SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error {
 	if err := w.store.SetProviderAPIKey(scope, providerID, apiKey); err != nil {
 		return err

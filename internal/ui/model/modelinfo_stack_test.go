@@ -93,6 +93,7 @@ func TestSelectedSmallModelReadsConfig(t *testing.T) {
 func TestModelInfoPlacesBalanceBeforeBothModels(t *testing.T) {
 	m := stackTestModel(t)
 	m.hyperCredits = intPtr(42)
+	m.showHyperCredits = true
 	m.com.Config().Providers.Set("hyper", config.ProviderConfig{ID: "hyper", Name: "Charm Hyper"})
 	m.com.Config().Models[config.SelectedModelTypeLarge] = config.SelectedModel{Provider: "hyper", Model: "Hyper/big-model"}
 	m.agentModel = workspace.AgentModel{

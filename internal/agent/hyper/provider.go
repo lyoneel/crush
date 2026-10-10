@@ -137,11 +137,28 @@ func IsCreditsModel(providerID, modelID string) bool {
 
 // balanceValue stores the hypercredit balance most recently fetched from
 // the /v1/credits endpoint; balanceKnown tracks whether any fetch has
-// reported one.
+// reported one. displayEnabled is the display kill-switch the TUI toggle
+// controls: while it is off, no fetch runs, because the /v1/credits call
+// exists only to feed the display.
 var (
-	balanceValue atomic.Int64
-	balanceKnown atomic.Bool
+	balanceValue   atomic.Int64
+	balanceKnown   atomic.Bool
+	displayEnabled atomic.Bool
 )
+
+func init() { displayEnabled.Store(true) }
+
+// SetDisplayEnabled turns the hypercredit balance fetching on or off. The
+// display is the only consumer of the balance, so an off toggle skips
+// every fetch: the UI poll and the per-request refreshes alike.
+func SetDisplayEnabled(enabled bool) {
+	displayEnabled.Store(enabled)
+}
+
+// DisplayEnabled reports whether the balance display is on.
+func DisplayEnabled() bool {
+	return displayEnabled.Load()
+}
 
 // setBalance stores the hypercredit balance reported by the /v1/credits
 // endpoint.
@@ -171,9 +188,15 @@ func Balance() *int {
 
 // FetchCredits fetches the remaining hypercredit balance from the
 // /v1/credits endpoint and stores it for [Balance] to return. It returns
-// nil when the team has hypercredit display disabled: Hyper reports the
-// balance in dollars for them, so there is no hypercredit figure to show.
+// nil when the balance display is toggled off, before any request leaves
+// the process: the display is the only consumer of this call. It also
+// returns nil when the team has hypercredit display disabled: Hyper
+// reports the balance in dollars for them, so there is no hypercredit
+// figure to show.
 func FetchCredits(ctx context.Context, apiKey string) (*int, error) {
+	if !DisplayEnabled() {
+		return nil, nil
+	}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,

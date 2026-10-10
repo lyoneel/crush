@@ -29,6 +29,9 @@ The upstream README below stays untouched. This fork adds:
 6. MCP capability counts in the LSP count style
 7. Select-both model binding: confirm the chosen model for the large
    and the small task model in one action
+8. Minimalist sidebar: disabled MCPs and LSPs that never activated
+   stay out of the sidebar (active LSPs stay visible, even after a
+   restart); the landing view keeps the full picture
 
 The rest of this README is the upstream README, unmodified.
 

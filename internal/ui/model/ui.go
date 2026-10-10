@@ -6506,8 +6506,8 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	sectionWidth := max(1, min(maxSectionWidth, (width-(columns-1))/columns)) // one space between columns
 	maxItemsPerSection := max(0, remainingHeight-3)                           // Account for section title and spacing
 
-	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false)
-	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false)
+	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false, false)
+	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false, false)
 	skillsSection := m.skillsInfo(sectionWidth, maxItemsPerSection, false)
 	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), sectionWidth, maxItemsPerSection, false)
 	sections := lipgloss.JoinHorizontal(lipgloss.Top, filesSection, " ", lspSection, " ", mcpSection, " ", skillsSection)

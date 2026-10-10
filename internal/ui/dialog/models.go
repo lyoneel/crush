@@ -81,13 +81,14 @@ type Models struct {
 	providers []catwalk.Provider
 
 	keyMap struct {
-		Tab      key.Binding
-		UpDown   key.Binding
-		Select   key.Binding
-		Edit     key.Binding
-		Next     key.Binding
-		Previous key.Binding
-		Close    key.Binding
+		Tab        key.Binding
+		UpDown     key.Binding
+		Select     key.Binding
+		SelectBoth key.Binding
+		Edit       key.Binding
+		Next       key.Binding
+		Previous   key.Binding
+		Close      key.Binding
 	}
 	list  *ModelsList
 	input textinput.Model
@@ -124,6 +125,10 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),
 		key.WithHelp("enter", "confirm"),
+	)
+	m.keyMap.SelectBoth = key.NewBinding(
+		key.WithKeys("shift+enter", "ctrl+j"),
+		key.WithHelp("shift+enter", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
@@ -189,7 +194,7 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 				m.list.SelectNext()
 			}
 			m.list.ScrollToSelected()
-		case key.Matches(msg, m.keyMap.Select, m.keyMap.Edit):
+		case key.Matches(msg, m.keyMap.Select, m.keyMap.SelectBoth, m.keyMap.Edit):
 			selectedItem := m.list.SelectedItem()
 			if selectedItem == nil {
 				break
@@ -201,12 +206,14 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 			}
 
 			isEdit := key.Matches(msg, m.keyMap.Edit)
+			isApplyBoth := !isEdit && key.Matches(msg, m.keyMap.SelectBoth)
 
 			return ActionSelectModel{
 				Provider:       modelItem.prov,
 				Model:          modelItem.SelectedModel(),
 				ModelType:      modelItem.SelectedModelType(),
 				ReAuthenticate: isEdit,
+				ModelApplyBoth: isApplyBoth,
 			}
 		case key.Matches(msg, m.keyMap.Tab):
 			if m.isOnboarding {
@@ -318,6 +325,7 @@ func (m *Models) ShortHelp() []key.Binding {
 		m.keyMap.UpDown,
 		m.keyMap.Tab,
 		m.keyMap.Select,
+		m.keyMap.SelectBoth,
 	}
 	if m.isSelectedConfigured() {
 		h = append(h, m.keyMap.Edit)

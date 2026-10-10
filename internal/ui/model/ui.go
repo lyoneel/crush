@@ -2891,14 +2891,21 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
 		cmds = append(cmds, util.ReportError(err))
 	} else {
-		if msg.ModelType == config.SelectedModelTypeLarge {
+		if msg.ModelType == config.SelectedModelTypeLarge || msg.ModelApplyBoth {
 			// Swap the theme live based on the newly selected large
 			// model's provider. Skipped when the provider resolves to
 			// the already-active theme, which avoids a full markdown
 			// re-render of the transcript on every selection.
 			m.applyThemeForProvider(providerID)
 		}
-		if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
+		if msg.ModelApplyBoth {
+			// Shift+confirm applies the chosen model to both task
+			// sizes, so the small model no longer falls back to a
+			// provider default.
+			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, msg.Model); err != nil {
+				cmds = append(cmds, util.ReportError(err))
+			}
+		} else if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
 			// Ensure small model is set is unset.
 			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
 			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
@@ -2920,6 +2927,9 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 			modelName = catwalkModel.Name
 		}
 		modelMsg := fmt.Sprintf("%s model changed to %s", modelType, modelName)
+		if msg.ModelApplyBoth {
+			modelMsg = fmt.Sprintf("Large and small models changed to %s", modelName)
+		}
 
 		return util.NewInfoMsg(modelMsg)
 	}))

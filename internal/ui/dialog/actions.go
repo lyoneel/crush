@@ -43,6 +43,7 @@ type ActionSelectModel struct {
 	Model          config.SelectedModel
 	ModelType      config.SelectedModelType
 	ReAuthenticate bool
+	ModelApplyBoth bool
 }
 
 // Messages for commands

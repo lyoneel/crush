@@ -353,6 +353,10 @@ type TUIOptions struct {
 	// activated from the sidebar. The nil pointer and the unset field
 	// both mean enabled, the default.
 	SidebarMinimalism *bool `json:"sidebar_minimalism,omitempty" jsonschema:"description=Hide disabled MCPs and LSPs that never activated in the sidebar,default=true"`
+	// ShowHypercredits shows the Hyper credits balance in the model
+	// info stack and the compact header. The nil pointer and the unset
+	// field both mean shown, the default.
+	ShowHypercredits *bool `json:"show_hypercredits,omitempty" jsonschema:"description=Show the Hyper credits balance in the TUI,default=true"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -367,6 +371,13 @@ func (t *TUIOptions) IsTransparent() bool {
 // enabled, so callers can ask without unwrapping either.
 func (t *TUIOptions) IsSidebarMinimalism() bool {
 	return t == nil || t.SidebarMinimalism == nil || *t.SidebarMinimalism
+}
+
+// IsShowHypercredits reports whether the TUI shows the Hyper credits
+// balance. The nil receiver and the unset pointer both mean shown, so
+// callers can ask without unwrapping either.
+func (t *TUIOptions) IsShowHypercredits() bool {
+	return t == nil || t.ShowHypercredits == nil || *t.ShowHypercredits
 }
 
 // UnmarshalJSON tolerates the legacy string form of the "theme" field.

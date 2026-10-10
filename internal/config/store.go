@@ -562,6 +562,14 @@ func (s *ConfigStore) SetSidebarMinimalism(scope Scope, enabled bool) error {
 	})
 }
 
+// SetShowHypercredits sets the Hyper credits visibility setting and persists it.
+func (s *ConfigStore) SetShowHypercredits(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().ShowHypercredits = &enabled
+		return map[string]any{"options.tui.show_hypercredits": enabled}
+	})
+}
+
 // SetTransparentBackground sets the transparent background setting and persists it.
 func (s *ConfigStore) SetTransparentBackground(scope Scope, enabled bool) error {
 	return s.update(scope, func(c *Config) map[string]any {

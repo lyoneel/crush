@@ -217,6 +217,7 @@ type Workspace interface {
 	UpdatePreferredModel(scope config.Scope, modelType config.SelectedModelType, model config.SelectedModel) error
 	SetCompactMode(scope config.Scope, enabled bool) error
 	SetSidebarMinimalism(scope config.Scope, enabled bool) error
+	SetShowHypercredits(scope config.Scope, enabled bool) error
 	SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error
 	SetConfigField(scope config.Scope, key string, value any) error
 	SetConfigFields(scope config.Scope, fields map[string]any) error

@@ -54,6 +54,7 @@ type (
 	ActionToggleHelp              struct{}
 	ActionToggleCompactMode       struct{}
 	ActionToggleSidebarMinimalism struct{}
+	ActionToggleHypercredits      struct{}
 	ActionToggleThinking          struct{}
 	ActionTogglePills             struct{}
 	ActionExternalEditor          struct{}

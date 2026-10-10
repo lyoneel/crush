@@ -49,11 +49,11 @@ func newTestModels(modelType ModelType) *Models {
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
 		key.WithKeys("shift+enter"),
-		key.WithHelp("shift+enter", "select both"),
+		key.WithHelp("⇧+⏎", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
-		key.WithHelp("Ctl+e", "edit"),
+		key.WithHelp("⌃e", "edit"),
 	)
 	m.keyMap.Next = key.NewBinding(
 		key.WithKeys("down", "ctrl+n"),

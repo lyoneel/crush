@@ -128,15 +128,15 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
 		key.WithKeys("shift+enter"),
-		key.WithHelp("shift+enter", "select both"),
+		key.WithHelp("⇧+⏎", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
-		key.WithHelp("Ctl+e", "edit"),
+		key.WithHelp("⌃e", "edit"),
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↑/↓", "move"),
+		key.WithHelp("↕", "move"),
 	)
 	m.keyMap.Next = key.NewBinding(
 		key.WithKeys("down", "ctrl+n"),

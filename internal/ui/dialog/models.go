@@ -124,7 +124,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),
-		key.WithHelp("enter", "select"),
+		key.WithHelp("enter", "confirm"),
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
 		key.WithKeys("shift+enter"),
@@ -136,7 +136,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↑/↓", "move"),
+		key.WithHelp("↑/↓", "choose"),
 	)
 	m.keyMap.Next = key.NewBinding(
 		key.WithKeys("down", "ctrl+n"),

@@ -935,6 +935,11 @@
           "type": "boolean",
           "description": "Hide disabled MCPs and LSPs that never activated in the sidebar",
           "default": true
+        },
+        "show_hypercredits": {
+          "type": "boolean",
+          "description": "Show the Hyper credits balance in the TUI",
+          "default": true
         }
       },
       "additionalProperties": false,

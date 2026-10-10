@@ -44,6 +44,9 @@ type countingWorkspace struct {
 	// sidebarMinimalismCalls records SetSidebarMinimalism persistence calls.
 	sidebarMinimalismCalls []bool
 
+	// showHypercreditsCalls records SetShowHypercredits persistence calls.
+	showHypercreditsCalls []bool
+
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -112,6 +115,11 @@ func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCo
 
 func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) error {
 	w.sidebarMinimalismCalls = append(w.sidebarMinimalismCalls, enabled)
+	return nil
+}
+
+func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
+	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
 	return nil
 }
 

@@ -91,7 +91,7 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 	small := m.selectedSmallModel()
 
 	var credits *int
-	if large != nil && m.com.IsHyperCredits() {
+	if large != nil && m.com.IsHyperCredits() && m.showHyperCredits {
 		credits = m.hyperCredits
 	}
 

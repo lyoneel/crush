@@ -59,8 +59,9 @@ func (s *Status) SetMode(mode uiInputMode, yolo bool) {
 	s.yolo = yolo
 }
 
-// modeBadge renders the badge for the current mode, or an empty string in
-// the default coding mode.
+// modeBadge renders the badge for the current mode. Every mode gets a
+// badge: the standard coding mode shows NORM in the success green, so
+// the indicator area never changes shape between modes.
 func (s *Status) modeBadge() string {
 	t := s.com.Styles
 	// Mirror the editor prompt precedence: planning wins over YOLO, which
@@ -71,7 +72,7 @@ func (s *Status) modeBadge() string {
 	if s.yolo {
 		return t.Status.ModeBadgeYolo.String()
 	}
-	return ""
+	return t.Status.ModeBadgeStd.String()
 }
 
 // SetWidth sets the width of the status bar and help view.

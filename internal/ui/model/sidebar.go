@@ -2,7 +2,6 @@ package model
 
 import (
 	"cmp"
-	"fmt"
 	"image"
 	"strings"
 
@@ -11,41 +10,65 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/logo"
+	"github.com/charmbracelet/crush/internal/ui/styles"
+	"github.com/charmbracelet/crush/internal/workspace"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/ultraviolet/layout"
 )
 
-// modelInfo renders the current model information including reasoning
-// settings and context usage/cost for the sidebar.
-func (m *UI) modelInfo(width int) string {
-	model := m.selectedLargeModel()
-	reasoningInfo := ""
+// selectedSmallModel returns the currently selected small model from the
+// live config. Unlike the large model it needs no agent probe: the
+// config carries the selection, and the header already reads it on every
+// frame.
+func (m *UI) selectedSmallModel() *workspace.AgentModel {
+	cfg := m.com.Config()
+	if cfg == nil {
+		return nil
+	}
+	sel, ok := cfg.Models[config.SelectedModelTypeSmall]
+	if !ok {
+		return nil
+	}
+	catwalkModel := cfg.GetModel(sel.Provider, sel.Model)
+	if catwalkModel == nil {
+		return nil
+	}
+	// Mirror the coordinator's enforcement: the small model always runs
+	// at its lowest reasoning effort, so the display shows what actually
+	// gets sent.
+	if effort := config.LowestReasoningEffort(catwalkModel); effort != "" {
+		sel.ReasoningEffort = effort
+	}
+	return &workspace.AgentModel{CatwalkCfg: *catwalkModel, ModelCfg: sel}
+}
+
+// modelInfoLine renders one model information block in the shared
+// format. usage controls the context and cost summary, which only
+// applies to the model the session usage is tracked against.
+func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage bool, icon string, smallModel bool) string {
+	effortInfo := ""
 	providerName := ""
 
-	if model != nil {
-		// Get provider name first
-		providerConfig, ok := m.com.Config().Providers.Get(model.ModelCfg.Provider)
-		if ok {
-			providerName = providerConfig.Name
+	// Get provider name first
+	if providerConfig, ok := m.com.Config().Providers.Get(model.ModelCfg.Provider); ok {
+		providerName = providerConfig.Name
 
-			// Only check reasoning if model can reason
-			if model.CatwalkCfg.CanReason() {
-				if len(model.CatwalkCfg.Reasoning.EffortLevels) == 0 {
-					if model.ModelCfg.Think {
-						reasoningInfo = "Thinking On"
-					} else {
-						reasoningInfo = "Thinking Off"
-					}
+		// Only show the effort inline if the model can reason
+		if model.CatwalkCfg.CanReason() {
+			if len(model.CatwalkCfg.Reasoning.EffortLevels) == 0 {
+				if model.ModelCfg.Think {
+					effortInfo = "Thinking On"
 				} else {
-					reasoningEffort := cmp.Or(model.ModelCfg.ReasoningEffort, model.CatwalkCfg.Reasoning.DefaultEffortLevel)
-					reasoningInfo = fmt.Sprintf("Reasoning %s", common.FormatReasoningEffort(reasoningEffort))
+					effortInfo = "Thinking Off"
 				}
+			} else {
+				effortInfo = common.FormatReasoningEffort(cmp.Or(model.ModelCfg.ReasoningEffort, model.CatwalkCfg.Reasoning.DefaultEffortLevel))
 			}
 		}
 	}
 
 	var modelContext *common.ModelContextInfo
-	if model != nil && m.session != nil {
+	if usage && m.session != nil {
 		modelContext = &common.ModelContextInfo{
 			ContextUsed:    m.session.CompletionTokens + m.session.PromptTokens,
 			Cost:           m.session.Cost,
@@ -53,11 +76,44 @@ func (m *UI) modelInfo(width int) string {
 			EstimatedUsage: m.session.EstimatedUsage,
 		}
 	}
-	var modelName string
-	if model != nil {
-		modelName = model.CatwalkCfg.Name
+
+	return common.ModelInfo(m.com.Styles, model.CatwalkCfg.Name, providerName, effortInfo, modelContext, width, nil, false, icon, smallModel)
+}
+
+// modelInfo renders the current model information including the inline
+// effort and context usage/cost, with the small model in the same
+// format on the line below, and the hypercredit balance before both,
+// matching the sidebar placement. With the sidebar layout the context
+// and cost summary moves below the small model; the landing view keeps
+// the context attached to the main model line.
+func (m *UI) modelInfo(width int, sidebarLayout bool) string {
+	large := m.selectedLargeModel()
+	small := m.selectedSmallModel()
+
+	var credits *int
+	if large != nil && m.com.IsHyperCredits() && m.showHyperCredits {
+		credits = m.hyperCredits
 	}
-	return common.ModelInfo(m.com.Styles, modelName, providerName, reasoningInfo, modelContext, width, m.hyperCredits)
+
+	var blocks []string
+	if credits != nil {
+		blocks = append(blocks, common.HypercreditBalance(m.com.Styles, *credits), "")
+	}
+	if large != nil {
+		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, styles.ModelIcon, false))
+	}
+	if small != nil {
+		blocks = append(blocks, m.modelInfoLine(width, small, false, styles.ModelIcon, true))
+	}
+	if sidebarLayout && large != nil && m.session != nil {
+		blocks = append(blocks, common.ModelContextSummary(m.com.Styles, common.ModelContextInfo{
+			ContextUsed:    m.session.CompletionTokens + m.session.PromptTokens,
+			Cost:           m.session.Cost,
+			ModelContext:   large.CatwalkCfg.ContextWindow,
+			EstimatedUsage: m.session.EstimatedUsage,
+		}))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }
 
 // updateSidebarScrollState renders the sidebar content and computes scroll
@@ -94,32 +150,20 @@ func (m *UI) updateSidebarScrollState() {
 	contentHeight := contentRect.Dy()
 
 	// Render all items without truncation; virtual scrolling handles overflow.
-	// The minimalism toggle switches the filter between the F-8 hidden
-	// states and the full pre-F-8 list.
 	lspSection := m.lspInfo(contentWidth, len(m.lspStates), true, m.sidebarMinimalism)
 	mcpSection := m.mcpInfo(contentWidth, mcpCount(m.com.Config().MCP.Sorted(), m.mcpStates), true, m.sidebarMinimalism)
 	skillsSection := m.skillsInfo(contentWidth, len(m.skillStatusItems()), true)
 	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), contentWidth, fileChangeCount(m.sessionFiles), true)
 
-	// Build the scrollable content. The subagent section renders empty
-	// until something is dispatched, so it takes no space in a session
-	// that never uses them.
+	// Build the scrollable content.
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
 		"",
 		cwd,
 		"",
-		m.modelInfo(contentWidth),
+		m.modelInfo(contentWidth, true),
 		"",
-	)
-	subAgents := m.subAgentStatuses()
-	if subAgentSection := m.subAgentsInfo(subAgents, contentWidth, len(subAgents), true); subAgentSection != "" {
-		content = lipgloss.JoinVertical(lipgloss.Left, content, subAgentSection, "")
-	}
-	content = lipgloss.JoinVertical(
-		lipgloss.Left,
-		content,
 		filesSection,
 		"",
 		lspSection,

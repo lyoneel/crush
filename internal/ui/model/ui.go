@@ -416,6 +416,10 @@ type UI struct {
 	// LSPs that never activated (the Toggle Compact Sidebar command)
 	sidebarMinimalism bool
 
+	// showHyperCredits tracks whether the TUI renders the Hyper credits
+	// balance (the Toggle Hypercredits command)
+	showHyperCredits bool
+
 	// isCompact tracks whether we're currently in compact layout mode (either
 	// by user toggle or auto-switch based on window size)
 	isCompact bool
@@ -630,6 +634,11 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// Initialize the sidebar minimalism filter from config (nil-safe;
 	// absent key means enabled).
 	ui.sidebarMinimalism = com.Config().Options.TUI.IsSidebarMinimalism()
+	// Initialize the Hyper credits visibility from config (nil-safe;
+	// absent key means shown). The agent-side fetches feed only the
+	// display, so the kill-switch follows the toggle.
+	ui.showHyperCredits = com.Config().Options.TUI.IsShowHypercredits()
+	hyper.SetDisplayEnabled(ui.showHyperCredits)
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -705,8 +714,10 @@ func (m *UI) Init() tea.Cmd {
 	}
 	// The credits balance is shown from the first frame on, so fetch it
 	// right away and keep polling it while Crush sits idle. The poll runs
-	// for every provider: it is a no-op unless Hyper is selected.
-	if m.com.IsHyper() {
+	// for every provider: it is a no-op unless the selected model consumes
+	// hypercredits. The fetch is display-only: it is skipped while the
+	// balance display is toggled off.
+	if m.showHyperCredits && m.com.IsHyperCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 	// The branch is shown from the first frame on, so read it now and keep
@@ -2407,6 +2418,22 @@ func (m *UI) handleDialogAction(action dialog.Action) tea.Cmd {
 			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Sidebar minimalism "+status)))
 		}
 		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleHypercredits:
+		m.showHyperCredits = !m.showHyperCredits
+		hyper.SetDisplayEnabled(m.showHyperCredits)
+		if err := m.com.Workspace.SetShowHypercredits(config.ScopeGlobal, m.showHyperCredits); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "hidden"
+			if m.showHyperCredits {
+				status = "shown"
+				// The balance fetches were skipped while hidden, so the
+				// freshly shown display needs a current value.
+				cmds = append(cmds, m.fetchHyperCredits())
+			}
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Hypercredits "+status)))
+		}
+		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionTogglePills:
 		if cmd := m.togglePillsExpanded(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -2849,10 +2876,19 @@ func (m *UI) refreshHyperAndRetrySelect(msg dialog.ActionSelectModel) tea.Cmd {
 // the stored value here is enough: until the first fetch lands the
 // balance is unknown and stays hidden.
 func (m *UI) updateHyperCredits() {
-	if !m.com.IsHyper() {
+	if !m.showHyperCredits || !m.com.IsHyperCredits() {
 		return
 	}
 	m.hyperCredits = hyper.Balance()
+}
+
+// headerCredits returns the credits value the compact header shows: nil
+// when the balance display is toggled off, so the header hides it.
+func (m *UI) headerCredits() *int {
+	if !m.showHyperCredits {
+		return nil
+	}
+	return m.hyperCredits
 }
 
 // fetchHyperCredits returns a command that asynchronously fetches the
@@ -3139,7 +3175,7 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		if cmd := m.dispatchBusyRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-	} else if m.com.IsHyper() {
+	} else if m.showHyperCredits && m.com.IsHyperCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 
@@ -3779,7 +3815,7 @@ func (m *UI) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		m.detailsOpen,
 		area.Dx(),
 		m.lspErrorCount(),
-		m.hyperCredits,
+		m.headerCredits(),
 		m.gitBranch,
 		m.subAgentsRunning,
 	)
@@ -6187,7 +6223,7 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 		// the refresh for the turn's last response is only kicked off once
 		// its request finishes, so it may still be in flight here.
 		m.updateHyperCredits()
-		if m.com.IsHyper() {
+		if m.showHyperCredits && m.com.IsHyperCredits() {
 			cmds = append(cmds, m.fetchHyperCredits())
 		}
 	case notify.TypeAgentError:
@@ -6567,7 +6603,7 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	blocks := []string{
 		title,
 		"",
-		m.modelInfo(width),
+		m.modelInfo(width, false),
 		"",
 	}
 

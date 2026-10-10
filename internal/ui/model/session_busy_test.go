@@ -45,6 +45,9 @@ type countingWorkspace struct {
 	// sidebarMinimalismCalls records SetSidebarMinimalism persistence calls.
 	sidebarMinimalismCalls []bool
 
+	// showHypercreditsCalls records SetShowHypercredits persistence calls.
+	showHypercreditsCalls []bool
+
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -116,6 +119,11 @@ func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCo
 
 func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) error {
 	w.sidebarMinimalismCalls = append(w.sidebarMinimalismCalls, enabled)
+	return nil
+}
+
+func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
+	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
 	return nil
 }
 
@@ -728,7 +736,7 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 	// with the agent not ready it renders the empty state.
 	m.agentReady = false
 	for range 10 {
-		m.modelInfo(40)
+		m.modelInfo(40, false)
 	}
 
 	require.Zero(t, ws.syncProbes(), "render helpers must never probe the workspace")

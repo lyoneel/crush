@@ -110,16 +110,29 @@ func copyHeaderField(header http.Header, metadata *openai.ProviderMetadata, head
 
 // HyperModelIDPrefix marks the model ids a gateway uses when it serves
 // Hyper models: the GoModel gateway lists them as "Hyper/<model>".
+// The prefix match is case-insensitive.
 const HyperModelIDPrefix = "Hyper/"
 
 // IsCreditsModel reports whether a model consumes hypercredits and so
 // drives the balance display: every model of the hyper provider itself,
-// and any model whose id carries the Hyper/ prefix served through an
+// and any model whose id carries the Hyper/ prefix in any letter case
+// served through an OpenAI-compatible gateway. Such models consume the
+// same hypercredit balance even when their provider is a gateway, so
+// the /v1/credits poll applies to them too.
+// IsCreditsModel reports whether a model consumes hypercredits and so
+// drives the balance display: every model of the hyper provider itself,
+// and any model whose id carries the Hyper/ prefix in any letter case,
+// or a /hyper/ path segment in any letter case, served through an
 // OpenAI-compatible gateway. Such models consume the same hypercredit
 // balance even when their provider is a gateway, so the /v1/credits
 // poll applies to them too.
 func IsCreditsModel(providerID, modelID string) bool {
-	return providerID == Name || strings.HasPrefix(modelID, HyperModelIDPrefix)
+	if providerID == Name {
+		return true
+	}
+	id := strings.ToLower(modelID)
+	prefix := strings.ToLower(HyperModelIDPrefix)
+	return strings.HasPrefix(id, prefix) || strings.Contains(id, "/"+prefix)
 }
 
 // balanceValue stores the hypercredit balance most recently fetched from

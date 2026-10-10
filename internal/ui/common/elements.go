@@ -67,10 +67,15 @@ type ModelContextInfo struct {
 // follows in brackets, and showHyperCredits controls the hypercredit
 // balance line; callers resolve it from the selected model so
 // gateway-served Hyper models can show their balance too.
-func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, context *ModelContextInfo, width int, hyperCredits *int, showHyperCredits bool, icon string) string {
+func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, context *ModelContextInfo, width int, hyperCredits *int, showHyperCredits bool, icon string, smallModel bool) string {
+	iconStyle := t.ModelInfo.Icon
+	if smallModel {
+		iconStyle = t.ModelInfo.SmallIcon
+	}
+	modelIcon := iconStyle.Render(icon)
 	modelName = t.ModelInfo.Name.Render(modelName)
 
-	modelLine := icon + " " + modelName
+	modelLine := modelIcon + " " + modelName
 	if reasoningInfo != "" {
 		modelLine += " " + t.ModelInfo.Reasoning.UnsetPadding().Render("{"+reasoningInfo+"}")
 	}

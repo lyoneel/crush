@@ -45,7 +45,7 @@ func (m *UI) selectedSmallModel() *workspace.AgentModel {
 // modelInfoLine renders one model information block in the shared
 // format. usage controls the context and cost summary, which only
 // applies to the model the session usage is tracked against.
-func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage bool, icon string) string {
+func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage bool, icon string, smallModel bool) string {
 	effortInfo := ""
 	providerName := ""
 
@@ -77,7 +77,7 @@ func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage bool, i
 		}
 	}
 
-	return common.ModelInfo(m.com.Styles, model.CatwalkCfg.Name, providerName, effortInfo, modelContext, width, nil, false, icon)
+	return common.ModelInfo(m.com.Styles, model.CatwalkCfg.Name, providerName, effortInfo, modelContext, width, nil, false, icon, smallModel)
 }
 
 // modelInfo renders the current model information including the inline
@@ -97,10 +97,10 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 
 	var blocks []string
 	if large != nil {
-		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, styles.ModelIcon))
+		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, styles.ModelIcon, false))
 	}
 	if small != nil {
-		blocks = append(blocks, m.modelInfoLine(width, small, false, styles.SmallModelIcon))
+		blocks = append(blocks, m.modelInfoLine(width, small, false, styles.ModelIcon, true))
 	}
 	if sidebarLayout && large != nil && m.session != nil {
 		blocks = append(blocks, common.ModelContextSummary(m.com.Styles, common.ModelContextInfo{

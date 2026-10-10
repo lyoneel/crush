@@ -26,9 +26,8 @@ The upstream README below stays untouched. This fork adds:
 4. Small model display with its enforced reasoning effort
 5. Real model metadata from gateway model discovery: context window,
    pricing, and reasoning capabilities
-6. Fork build version stamp, for example `v0.98.1-ly-N`
-7. MCP capability counts in the LSP count style
-8. Select-both model binding: confirm the chosen model for the large
+6. MCP capability counts in the LSP count style
+7. Select-both model binding: confirm the chosen model for the large
    and the small task model in one action
 
 The rest of this README is the upstream README, unmodified.

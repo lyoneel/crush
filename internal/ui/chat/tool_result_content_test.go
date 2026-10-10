@@ -151,7 +151,7 @@ func TestToolOutputHookIndicatorPostHook(t *testing.T) {
 			HookCount: 1,
 			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Matcher: "^bash$", Decision: "allow"}},
 		}
-		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(pre, post), 100))
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(pre, post), 100, 0))
 		require.Contains(t, out, "Hook [PreTU]")
 		require.Contains(t, out, "rtk-rewrite.sh")
 		require.Contains(t, out, "Hook [PostTU]")
@@ -166,7 +166,7 @@ func TestToolOutputHookIndicatorPostHook(t *testing.T) {
 			HookCount: 1,
 			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Decision: "allow"}},
 		}
-		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100))
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100, 0))
 		require.Contains(t, out, "Hook [PostTU]")
 		require.NotContains(t, out, "Hook [PreTU]")
 	})
@@ -178,14 +178,14 @@ func TestToolOutputHookIndicatorPostHook(t *testing.T) {
 			HookCount: 1,
 			Hooks:     []hooks.HookInfo{{Name: "audit-tool.sh", Decision: "deny", Reason: "too late"}},
 		}
-		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100))
+		out := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(nil, post), 100, 0))
 		require.Contains(t, out, "Denied")
 		require.Contains(t, out, "too late")
 	})
 
 	t.Run("empty metadata renders nothing", func(t *testing.T) {
 		t.Parallel()
-		require.Empty(t, toolOutputHookIndicator(&sty, "", 100))
-		require.Empty(t, toolOutputHookIndicator(&sty, hookMetaJSON(nil, nil), 100))
+		require.Empty(t, toolOutputHookIndicator(&sty, "", 100, 0))
+		require.Empty(t, toolOutputHookIndicator(&sty, hookMetaJSON(nil, nil), 100, 0))
 	})
 }

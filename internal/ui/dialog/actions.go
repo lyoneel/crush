@@ -43,6 +43,9 @@ type ActionSelectModel struct {
 	Model          config.SelectedModel
 	ModelType      config.SelectedModelType
 	ReAuthenticate bool
+	// ApplyBoth is set when the user confirms with shift+enter: the
+	// chosen model replaces both the large and the small task model.
+	ApplyBoth bool
 }
 
 // Messages for commands

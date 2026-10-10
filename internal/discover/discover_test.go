@@ -219,3 +219,51 @@ func TestStripV1Suffix(t *testing.T) {
 		require.Equal(t, tt.want, got, "stripV1Suffix(%q)", tt.input)
 	}
 }
+
+// TestDiscoverModelsMetadata pins the metadata mapping: a gateway that
+// attaches a metadata block (Hyper-style) has its context window, max
+// tokens, pricing, and reasoning capability carried into the catalog.
+// A bare entry still maps with zero values.
+func TestDiscoverModelsMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data": [
+				{
+					"id": "Hyper/glm-5.3-flash",
+					"object": "model",
+					"owned_by": "Hyper",
+					"metadata": {
+						"display_name": "glm-5.3-flash",
+						"context_window": 1048575,
+						"max_output_tokens": 943717,
+						"capabilities": {"reasoning": true, "function_calling": true},
+						"pricing": {"currency": "USD", "input_per_mtok": 0.15, "output_per_mtok": 0.5, "cached_input_per_mtok": 0.03}
+					}
+				},
+				{"id": "bare-model", "object": "model"}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	models, err := DiscoverModels(context.Background(), Config{ID: "t", BaseURL: server.URL + "/v1", APIKey: "k"}, &mockResolver{})
+	require.NoError(t, err)
+	require.Len(t, models, 2)
+
+	rich := models[0]
+	require.Equal(t, "Hyper/glm-5.3-flash", rich.ID)
+	require.Equal(t, "glm-5.3-flash", rich.Name)
+	require.Equal(t, int64(1048575), rich.ContextWindow)
+	require.Equal(t, int64(943717), rich.DefaultMaxTokens)
+	require.True(t, rich.CanReason)
+	require.Equal(t, 0.15, rich.CostPer1MIn)
+	require.Equal(t, 0.5, rich.CostPer1MOut)
+	require.Equal(t, 0.03, rich.CostPer1MInCached)
+
+	bare := models[1]
+	require.Equal(t, "bare-model", bare.ID)
+	require.Equal(t, "bare-model", bare.Name)
+	require.Equal(t, int64(0), bare.ContextWindow)
+	require.False(t, bare.CanReason)
+}

@@ -30,6 +30,16 @@ type SessionPayload struct {
 	UpdatedAt        int64   `json:"updated_at"`
 }
 
+// ContextUsage carries the model context snapshot hooks receive on every
+// event: which model served the turn, its context window, and whether
+// the session token counters are estimates. ContextWindow is 0 when the
+// model does not publish a window, so scripts must treat 0 as unknown.
+type ContextUsage struct {
+	ModelID        string `json:"model_id,omitempty"`
+	ContextWindow  int64  `json:"context_window,omitempty"`
+	EstimatedUsage bool   `json:"estimated_usage,omitempty"`
+}
+
 // Payload is the JSON structure piped to hook commands via stdin.
 // ToolInput is emitted as a parsed JSON object for compatibility with
 // Claude Code hooks (which expect tool_input to be an object, not a
@@ -45,6 +55,10 @@ type Payload struct {
 	Prompt     string          `json:"prompt,omitempty"`
 	Response   string          `json:"response,omitempty"`
 
+	// Context usage for the turn's model. Never null: fields are
+	// omitted when unavailable.
+	ContextUsage *ContextUsage `json:"context_usage,omitempty"`
+
 	// Lifecycle events only. A nil side marshals as null, so a session
 	// switch away from a first session carries previous_session: null.
 	PreviousSession *SessionPayload `json:"previous_session"`
@@ -55,24 +69,31 @@ type Payload struct {
 
 // BuildPayload constructs the JSON stdin payload for a hook command.
 // toolOutput applies to PostToolUse; other events pass an empty string.
-func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON, toolOutput string) []byte {
+// usage carries the model context snapshot; nil omits it.
+func BuildPayloadWithUsage(eventName, sessionID, cwd, toolName, toolInputJSON, toolOutput string, usage *ContextUsage) []byte {
 	toolInput := json.RawMessage(toolInputJSON)
 	if !json.Valid(toolInput) {
 		toolInput = json.RawMessage("{}")
 	}
 	p := Payload{
-		Event:      eventName,
-		SessionID:  sessionID,
-		CWD:        cwd,
-		ToolName:   toolName,
-		ToolInput:  toolInput,
-		ToolOutput: toolOutput,
+		Event:        eventName,
+		SessionID:    sessionID,
+		CWD:          cwd,
+		ToolName:     toolName,
+		ToolInput:    toolInput,
+		ToolOutput:   toolOutput,
+		ContextUsage: usage,
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
 		return []byte("{}")
 	}
 	return data
+}
+
+// BuildPayload is BuildPayloadWithUsage without context usage.
+func BuildPayload(eventName, sessionID, cwd, toolName, toolInputJSON, toolOutput string) []byte {
+	return BuildPayloadWithUsage(eventName, sessionID, cwd, toolName, toolInputJSON, toolOutput, nil)
 }
 
 // SessionEventData carries the lifecycle-specific payload fields.
@@ -88,9 +109,10 @@ type SessionEventData struct {
 	Response string
 }
 
-// BuildSessionEventPayload constructs the JSON stdin payload for a
-// lifecycle hook command. Tool fields stay unset.
-func BuildSessionEventPayload(eventName, sessionID, cwd string, data SessionEventData) []byte {
+// BuildSessionEventPayloadWithUsage constructs the JSON stdin payload for
+// a lifecycle hook command with a model context snapshot. Tool fields
+// stay unset.
+func BuildSessionEventPayloadWithUsage(eventName, sessionID, cwd string, data SessionEventData, usage *ContextUsage) []byte {
 	p := Payload{
 		Event:           eventName,
 		SessionID:       sessionID,
@@ -100,12 +122,19 @@ func BuildSessionEventPayload(eventName, sessionID, cwd string, data SessionEven
 		Session:         data.Session,
 		Prompt:          data.Prompt,
 		Response:        data.Response,
+		ContextUsage:    usage,
 	}
 	out, err := json.Marshal(p)
 	if err != nil {
 		return []byte("{}")
 	}
 	return out
+}
+
+// BuildSessionEventPayload is BuildSessionEventPayloadWithUsage without
+// context usage.
+func BuildSessionEventPayload(eventName, sessionID, cwd string, data SessionEventData) []byte {
+	return BuildSessionEventPayloadWithUsage(eventName, sessionID, cwd, data, nil)
 }
 
 // BuildEnv constructs the environment variable slice for a hook command.
@@ -272,4 +301,39 @@ func parseDecision(s string) Decision {
 	default:
 		return DecisionNone
 	}
+}
+
+// UsageSource carries the raw session and model facts a caller resolves
+// at fire time. BuildContextUsage converts it into the payload form.
+type UsageSource struct {
+	SessionPromptTokens     int64
+	SessionCompletionTokens int64
+	SessionEstimatedUsage   bool
+	ModelID                 string
+	ModelContextWindow      int64
+}
+
+// BuildContextUsage converts a UsageSource into the payload form. It
+// returns nil only when the caller has nothing: the payload omits the
+// field instead of shipping an empty window.
+func BuildContextUsage(src UsageSource) *ContextUsage {
+	return &ContextUsage{
+		ModelID:        src.ModelID,
+		ContextWindow:  src.ModelContextWindow,
+		EstimatedUsage: src.SessionEstimatedUsage,
+	}
+}
+
+// AppendUsageEnv adds the model context env vars for the snapshot the
+// runner embeds in the payload. A nil snapshot emits nothing.
+func AppendUsageEnv(env []string, usage *ContextUsage) []string {
+	if usage == nil {
+		return env
+	}
+	env = append(env,
+		fmt.Sprintf("CRUSH_MODEL_ID=%s", usage.ModelID),
+		fmt.Sprintf("CRUSH_CONTEXT_WINDOW=%d", usage.ContextWindow),
+		fmt.Sprintf("CRUSH_ESTIMATED_USAGE=%t", usage.EstimatedUsage),
+	)
+	return env
 }

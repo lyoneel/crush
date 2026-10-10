@@ -32,6 +32,8 @@ The upstream README below stays untouched. This fork adds:
 8. Minimalist sidebar: disabled MCPs and LSPs that never activated
    stay out of the sidebar (active LSPs stay visible, even after a
    restart); the landing view keeps the full picture
+9. Sidebar minimalism toggle: `/` > Toggle Compact Sidebar switches
+   the sidebar filter (persisted, on by default)
 
 The rest of this README is the upstream README, unmodified.
 

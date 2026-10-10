@@ -155,8 +155,10 @@ func (m *UI) updateSidebarScrollState() {
 	contentHeight := contentRect.Dy()
 
 	// Render all items without truncation; virtual scrolling handles overflow.
-	lspSection := m.lspInfo(contentWidth, len(m.lspStates), true, true)
-	mcpSection := m.mcpInfo(contentWidth, mcpCount(m.com.Config().MCP.Sorted(), m.mcpStates), true, true)
+	// The minimalism toggle switches the filter between the F-8 hidden
+	// states and the full pre-F-8 list.
+	lspSection := m.lspInfo(contentWidth, len(m.lspStates), true, m.sidebarMinimalism)
+	mcpSection := m.mcpInfo(contentWidth, mcpCount(m.com.Config().MCP.Sorted(), m.mcpStates), true, m.sidebarMinimalism)
 	skillsSection := m.skillsInfo(contentWidth, len(m.skillStatusItems()), true)
 	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), contentWidth, fileChangeCount(m.sessionFiles), true)
 

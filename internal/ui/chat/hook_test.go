@@ -316,6 +316,35 @@ func TestHookLabelColumnAlignment(t *testing.T) {
 		"the inline line indents by the glyph's two cells")
 }
 
+// TestHookLabelColumnAlignmentNarrowWidth pins the label-column contract
+// on a width that dropped the status glyph: a lifecycle line whose
+// glyphs cannot afford keeps the two-cell indent, so its Hook label
+// still lines up with the inline indicator lines. The pre-fix code
+// dropped the glyph and left the label at column 0.
+func TestHookLabelColumnAlignmentNarrowWidth(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	width := 21
+	lifecycle := ansi.Strip(NewHookItem(&sty, "msg-1", message.HookContent{
+		Event: "PreSession",
+		Hooks: []message.HookRun{{Event: "PreSession", Name: "session-start.sh", Decision: "none"}},
+	}).RawRender(width))
+
+	inline := &hooks.HookMetadata{
+		Event:     hooks.EventPreToolUse,
+		HookCount: 1,
+		Hooks:     []hooks.HookInfo{{Name: "session-start.sh", Decision: "allow"}},
+	}
+	toolLine := ansi.Strip(toolOutputHookIndicator(&sty, hookMetaJSON(inline, nil), width))
+
+	labelCol := ansi.StringWidth(strings.SplitN(lifecycle, "Hook", 2)[0])
+	require.Equal(t, 2, labelCol, "the glyph-less lifecycle label keeps the two-cell indent")
+	require.Equal(t, labelCol, ansi.StringWidth(strings.SplitN(toolLine, "Hook", 2)[0]),
+		"the inline label must start in the same column")
+}
+
 // TestHookItemsAdjacentNoGap pins that consecutive hook items render as
 // one block: the list-level gap row is suppressed between hook items,
 // whatever their event types, while a non-hook neighbor keeps its gap.

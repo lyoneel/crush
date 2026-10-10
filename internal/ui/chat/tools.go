@@ -915,10 +915,22 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 		fixed += maxDetailWidth
 		budget := width - fixed
 		if budget < 1 && lifecycle {
-			// The glyph costs 2 cells; drop it before eating the whole
-			// name column so narrow widths stay readable.
+			// The glyph is too expensive for this width. Drop it, but
+			// keep the same two-cell label column: without the indent
+			// the label sits at column 0 and no longer lines up with
+			// the inline indicator lines. The fixed budget reserved 3
+			// cells for glyph + space, the indent costs 2, so one cell
+			// returns to the name column.
 			lifecycle = false
-			budget += 2
+			prefix = "  "
+			budget += 1
+			if budget < 1 {
+				// Even the two-cell indent does not fit; the flush-left
+				// fallback is the only rendering that stays within the
+				// requested width.
+				prefix = ""
+				budget += 2
+			}
 		}
 		if budget < maxNameWidth {
 			maxNameWidth = max(1, budget)

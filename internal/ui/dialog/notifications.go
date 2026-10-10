@@ -105,7 +105,7 @@ func NewNotifications(com *common.Common) *Notifications {
 	)
 	n.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↑/↓", "choose"),
+		key.WithHelp("↕", "choose"),
 	)
 	n.keyMap.Close = CloseKey
 

@@ -80,9 +80,9 @@ func TestHookItemRendersLegacyTag(t *testing.T) {
 
 // TestHookItemSingleLine pins the native single-line shape: one line per
 // hook run in the form `✓ Hook [tag] name → OK`, with the completion
-// glyph marking a lifecycle line, no separate head line, and no blank
-// line. This test fails on the pre-change code because the old output
-// carried the head line above the body.
+// glyph marking an asynchronous lifecycle line, no separate head line,
+// and no blank line. This test fails on the pre-change code because the
+// old output carried the head line above the body.
 func TestHookItemSingleLine(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestHookItemSingleLine(t *testing.T) {
 			t.Parallel()
 			item := NewHookItem(&sty, "msg-1", message.HookContent{
 				Event: tt.event,
-				Hooks: []message.HookRun{{Event: tt.event, Name: "prompt-pre.sh", Decision: "allow"}},
+				Hooks: []message.HookRun{{Event: tt.event, Name: "prompt-pre.sh", Decision: "allow", Async: true}},
 			})
 			out := ansi.Strip(item.RawRender(100))
 			lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
@@ -195,10 +195,11 @@ func TestHookFailureStatuses(t *testing.T) {
 	}
 }
 
-// TestHookCompletionGlyph pins the lifecycle completion marker: a green
-// check before the label on a completed run and a yellow cross on a
-// failed run. The glyph separates lifecycle completion notices from the
-// inline PreToolUse indicator, which has no glyph.
+// TestHookCompletionGlyph pins the lifecycle completion marker on an
+// asynchronous hook: a green check before the label on a completed run
+// and a yellow cross on a failed run. The glyph separates async
+// lifecycle notices from the inline PreToolUse indicator, which has no
+// glyph.
 func TestHookCompletionGlyph(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +209,7 @@ func TestHookCompletionGlyph(t *testing.T) {
 		t.Parallel()
 		item := NewHookItem(&sty, "msg-1", message.HookContent{
 			Event: "PrePrompt",
-			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none"}},
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Async: true}},
 		})
 		raw := item.RawRender(100)
 		require.Contains(t, raw, sty.Tool.JobIconSuccess.SetString(styles.ToolSuccess).Render())
@@ -219,7 +220,7 @@ func TestHookCompletionGlyph(t *testing.T) {
 		t.Parallel()
 		item := NewHookItem(&sty, "msg-1", message.HookContent{
 			Event: "PrePrompt",
-			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: "exit 5"}},
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: "exit 5", Async: true}},
 		})
 		raw := item.RawRender(100)
 		require.Contains(t, raw, sty.Tool.HookFailed.SetString(styles.ToolError).Render())
@@ -249,13 +250,62 @@ func TestHookPendingLine(t *testing.T) {
 	sty := styles.CharmtonePantera()
 	item := NewHookItem(&sty, "msg-1", message.HookContent{
 		Event: "PrePrompt",
-		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning}},
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning, Async: true}},
 	})
 	raw := item.RawRender(100)
 	out := ansi.Strip(raw)
 
 	require.Contains(t, out, "● Hook [PrePR] slow-notify.sh")
 	require.NotContains(t, out, "OK")
+}
+
+// TestHookGlyphAsyncOnly pins the async gate on the status glyph: a
+// synchronous hook renders each lifecycle line glyph-less, while the
+// same run marked async carries the completion mark. The glyph-less
+// line keeps the two-cell indent so its label lines up with the inline
+// indicator lines. This test fails on the pre-fix code, which rendered
+// the glyph on every lifecycle line regardless of async.
+func TestHookGlyphAsyncOnly(t *testing.T) {
+	t.Parallel()
+
+	sty := styles.CharmtonePantera()
+
+	t.Run("synchronous running run has no glyph", func(t *testing.T) {
+		t.Parallel()
+		item := NewHookItem(&sty, "msg-1", message.HookContent{
+			Event: "PrePrompt",
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Status: hooks.StatusRunning}},
+		})
+		raw := item.RawRender(100)
+		out := ansi.Strip(raw)
+		require.Contains(t, out, "  Hook [PrePR] f.sh")
+		require.NotContains(t, out, styles.ToolPending)
+		require.NotContains(t, out, styles.ToolSuccess)
+		require.NotContains(t, out, styles.ToolError)
+	})
+
+	t.Run("synchronous completed run has no glyph", func(t *testing.T) {
+		t.Parallel()
+		item := NewHookItem(&sty, "msg-1", message.HookContent{
+			Event: "PrePrompt",
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none"}},
+		})
+		raw := item.RawRender(100)
+		out := ansi.Strip(raw)
+		require.Contains(t, out, "OK")
+		require.NotContains(t, out, styles.ToolSuccess)
+		require.NotContains(t, out, styles.ToolError)
+	})
+
+	t.Run("async run keeps the glyph", func(t *testing.T) {
+		t.Parallel()
+		item := NewHookItem(&sty, "msg-1", message.HookContent{
+			Event: "PrePrompt",
+			Hooks: []message.HookRun{{Event: "PrePrompt", Name: "f.sh", Decision: "none", Async: true}},
+		})
+		raw := item.RawRender(100)
+		require.Contains(t, raw, sty.Tool.JobIconSuccess.SetString(styles.ToolSuccess).Render())
+	})
 }
 
 // TestHookItemSetContentPinsUpdate pins the in-place update path: the
@@ -268,14 +318,14 @@ func TestHookItemSetContentPinsUpdate(t *testing.T) {
 	sty := styles.CharmtonePantera()
 	hookItem := NewHookItem(&sty, "msg-1", message.HookContent{
 		Event: "PrePrompt",
-		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning}},
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Status: hooks.StatusRunning, Async: true}},
 	})
 	item, ok := hookItem.(*HookItem)
 	require.True(t, ok)
 	before := item.Version()
 	item.SetContent(message.HookContent{
 		Event: "PrePrompt",
-		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none"}},
+		Hooks: []message.HookRun{{Event: "PrePrompt", Name: "slow-notify.sh", Decision: "none", Async: true}},
 	})
 	after := item.Version()
 
@@ -286,9 +336,9 @@ func TestHookItemSetContentPinsUpdate(t *testing.T) {
 }
 
 // TestHookLabelColumnAlignment pins that the "Hook" label starts in the
-// same column on every hook line: lifecycle lines spend their first two
-// cells on the status glyph, inline tool indicator lines indent by the
-// same two cells so both label columns line up.
+// same column on every hook line: a synchronous lifecycle line has no
+// glyph and indents by the glyph's two cells, inline tool indicator
+// lines indent by the same two cells, so both label columns line up.
 func TestHookLabelColumnAlignment(t *testing.T) {
 	t.Parallel()
 
@@ -309,7 +359,7 @@ func TestHookLabelColumnAlignment(t *testing.T) {
 	// strings.Index is byte-based; strip everything from the label on to
 	// measure the label column in display cells.
 	labelCol := ansi.StringWidth(strings.SplitN(lifecycle, "Hook", 2)[0])
-	require.Equal(t, 2, labelCol, "the lifecycle label sits two cells in, after the glyph")
+	require.Equal(t, 2, labelCol, "the glyph-less lifecycle label sits two cells in")
 	require.Equal(t, labelCol, ansi.StringWidth(strings.SplitN(toolLine, "Hook", 2)[0]),
 		"the inline label must start in the same column as the lifecycle label")
 	require.True(t, strings.HasPrefix(toolLine, "  Hook [PreTU]"),
@@ -317,8 +367,8 @@ func TestHookLabelColumnAlignment(t *testing.T) {
 }
 
 // TestHookLabelColumnAlignmentNarrowWidth pins the label-column contract
-// on a width that dropped the status glyph: a lifecycle line whose
-// glyphs cannot afford keeps the two-cell indent, so its Hook label
+// on a narrow width: a synchronous lifecycle line, whose status glyph
+// does not exist at all, keeps the two-cell indent, so its Hook label
 // still lines up with the inline indicator lines. The pre-fix code
 // dropped the glyph and left the label at column 0.
 func TestHookLabelColumnAlignmentNarrowWidth(t *testing.T) {

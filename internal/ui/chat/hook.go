@@ -106,7 +106,7 @@ func (h *HookItem) Render(width int) string {
 func (h *HookItem) RawRender(width int) string {
 	infos := make([]hooks.HookInfo, len(h.hooks))
 	for i, run := range h.hooks {
-		infos[i] = hooks.HookInfo{Name: run.Name, Decision: run.Decision, Status: run.Status}
+		infos[i] = hooks.HookInfo{Name: run.Name, Decision: run.Decision, Status: run.Status, Async: run.Async}
 	}
 	metadata, err := json.Marshal(struct {
 		Hook *hooks.HookMetadata `json:"hook"`

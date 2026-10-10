@@ -126,13 +126,15 @@ func pendingLifecycleRuns(eventName string, hookCfgs []config.HookConfig) []mess
 			continue
 		}
 		seen[h.Command] = true
-		runs = append(runs, message.HookRun{Event: eventName, Name: h.DisplayName(), Decision: "none", Status: hooks.StatusRunning})
+		runs = append(runs, message.HookRun{Event: eventName, Name: h.DisplayName(), Decision: "none", Status: hooks.StatusRunning, Async: true})
 	}
 	return runs
 }
 
 // runLifecycleHookRuns runs a lifecycle event's hooks and converts the
-// result into transcript runs; an empty result records nothing.
+// result into transcript runs; an empty result records nothing. The
+// only caller is the asynchronous fire: every run it records is marked
+// async so the transcript line carries the status glyph.
 func runLifecycleHookRuns(ctx context.Context, runner *hooks.Runner, eventName, sessionID string, data hooks.SessionEventData) []message.HookRun {
 	result, err := runner.RunLifecycle(ctx, eventName, sessionID, data)
 	if err != nil {
@@ -144,7 +146,7 @@ func runLifecycleHookRuns(ctx context.Context, runner *hooks.Runner, eventName, 
 	}
 	runs := make([]message.HookRun, len(result.Hooks))
 	for i, h := range result.Hooks {
-		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status}
+		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status, Async: true}
 	}
 	return runs
 }

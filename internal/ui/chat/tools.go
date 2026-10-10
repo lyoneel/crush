@@ -920,37 +920,25 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 
 	// Events with a bracket tag (PreToolUse) append the tag after the
 	// plain "Hook" label. The label and the tag keep separate styles:
-	// the label is green, the tag is gray. Lifecycle events (hook
-	// completion notices recorded in the transcript) additionally get a
-	// leading status glyph so they read differently from the inline
-	// PreToolUse indicator: a green pending dot while the run is still
-	// going, a green check when it completed, and a yellow cross when
-	// it did not. The glyph is per hook, so a section with mixed
-	// statuses carries the completion mark.
+	// the label is green, the tag is gray. Lifecycle events (hook run
+	// notices recorded in the transcript) carry a leading status glyph
+	// only when the hook ran asynchronously: a green pending dot while
+	// the run is still going, a green check when it completed, and a
+	// yellow cross when it did not. A synchronous hook shows no glyph;
+	// its line keeps the same two-cell label column as the inline
+	// PreToolUse indicator, which indents by the glyph's width.
 	label := "Hook"
 	tag := ""
 	if t, ok := lifecycleTag[h.Event]; ok {
 		tag = t
 	}
 	lifecycle := false
-	glyph := ""
-	glyphStyle := sty.Tool.JobIconSuccess
+	flush := false
 	if h.Event != hooks.EventPreToolUse && h.Event != hooks.EventPostToolUse {
 		lifecycle = true
-		if len(h.Hooks) == 1 && h.Hooks[0].Status == hooks.StatusRunning {
-			glyph = styles.ToolPending
-			glyphStyle = sty.Tool.IconPending
-		}
 	}
-	// Inline tool indicator lines have no glyph, but they indent by the
-	// glyph's two cells so every "Hook" label starts in the same column
-	// across transcript and tool result blocks.
-	prefix := ""
-	if !lifecycle {
-		prefix = "  "
-		if width > 0 {
-			width -= 2
-		}
+	if !lifecycle && width > 0 {
+		width -= 2
 	}
 
 	// Sanitize names (replace newlines with ¶) and compute max widths
@@ -1001,21 +989,16 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 		fixed += 1 + lipgloss.Width(sty.Tool.HookArrow.Render(styles.ArrowRightIcon)) + 1
 		fixed += maxDetailWidth
 		budget := width - fixed
+		// Narrow-width fallbacks: drop the status glyph but keep the
+		// two-cell label column so the line still lines up with the
+		// inline indicator lines; if even the indent cannot fit, fall
+		// back to flush-left lines, the only rendering that stays
+		// within the requested width.
 		if budget < 1 && lifecycle {
-			// The glyph is too expensive for this width. Drop it, but
-			// keep the same two-cell label column: without the indent
-			// the label sits at column 0 and no longer lines up with
-			// the inline indicator lines. The fixed budget reserved 3
-			// cells for glyph + space, the indent costs 2, so one cell
-			// returns to the name column.
 			lifecycle = false
-			prefix = "  "
 			budget += 1
 			if budget < 1 {
-				// Even the two-cell indent does not fit; the flush-left
-				// fallback is the only rendering that stays within the
-				// requested width.
-				prefix = ""
+				flush = true
 				budget += 2
 			}
 		}
@@ -1027,7 +1010,7 @@ func renderHookSection(sty *styles.Styles, h *hooks.HookMetadata, width int) str
 	var lines []string
 	for i, hi := range h.Hooks {
 		name := truncateHookName(sanitizedNames[i], maxNameWidth)
-		lines = append(lines, prefix+renderHookLine(sty, hi, label, tag, lifecycle, glyph, glyphStyle, name, details[i], maxNameWidth, maxMatcherWidth))
+		lines = append(lines, renderHookLine(sty, hi, label, tag, lifecycle, flush, name, details[i], maxNameWidth, maxMatcherWidth))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -1065,10 +1048,13 @@ func isLikelyPath(s string) bool {
 
 // renderHookLine renders a single hook indicator line with aligned columns.
 // label is the plain-text label column ("Hook") and tag the bracket tag
-// (for example "[PreTU]"); the tag may be empty. lifecycle renders a
-// leading glyph for transcript hook lines: glyph and glyphStyle are the
-// pending dot when the run has not finished, else the completion mark.
-func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle bool, glyph string, glyphStyle lipgloss.Style, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
+// (for example "[PreTU]"); the tag may be empty. A lifecycle line
+// renders a leading status glyph only when the hook ran asynchronously:
+// a green pending dot while the run has not finished, else the
+// completion mark. Every glyph-less line keeps the same two-cell label
+// column as the glyped ones so all "Hook" labels line up; flush drops
+// that indent as the last narrow-width fallback.
+func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, lifecycle, flush bool, rawName, detail string, maxNameWidth, maxMatcherWidth int) string {
 	name := sty.Tool.HookName.Render(rawName)
 	namePad := strings.Repeat(" ", max(0, maxNameWidth-lipgloss.Width(name)))
 
@@ -1095,19 +1081,26 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, li
 	if tag != "" {
 		head += " " + tagStyle.Render(tag)
 	}
-	if lifecycle && glyph == "" {
-		// Per-hook completion mark: green check on a completed run,
-		// yellow cross on a run that did not finish normally.
-		if hi.Status == "" {
-			glyph = styles.ToolSuccess
-			glyphStyle = sty.Tool.JobIconSuccess
-		} else {
-			glyph = styles.ToolError
-			glyphStyle = sty.Tool.HookFailed
+	if lifecycle && hi.Async && !flush {
+		// Async hook run: pending dot while it is still going, green
+		// check on a completed run, yellow cross on a run that did not
+		// finish normally.
+		var glyph string
+		var glyphStyle lipgloss.Style
+		switch {
+		case hi.Status == hooks.StatusRunning:
+			glyph, glyphStyle = styles.ToolPending, sty.Tool.IconPending
+		case hi.Status == "":
+			glyph, glyphStyle = styles.ToolSuccess, sty.Tool.JobIconSuccess
+		default:
+			glyph, glyphStyle = styles.ToolError, sty.Tool.HookFailed
 		}
-	}
-	if lifecycle && glyph != "" {
 		head = glyphStyle.SetString(glyph).Render() + " " + head
+	} else if !flush {
+		// Glyph-less lines (synchronous hooks and inline indicator
+		// lines) indent by the glyph's two cells so every label starts
+		// in the same column.
+		head = "  " + head
 	}
 
 	if detail == "" {

@@ -55,6 +55,8 @@ type HookMetadata struct {
 }
 
 // HookInfo identifies a single hook that ran and its individual result.
+// Async marks a hook that ran fire-and-forget and is only consumed by
+// the lifecycle transcript renderer to gate the status glyph.
 type HookInfo struct {
 	Name         string `json:"name"`
 	Matcher      string `json:"matcher,omitempty"`
@@ -63,6 +65,7 @@ type HookInfo struct {
 	Halt         bool   `json:"halt,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	InputRewrite bool   `json:"input_rewrite,omitempty"`
+	Async        bool   `json:"async,omitempty"`
 }
 
 // Decision represents the outcome of a single hook execution.

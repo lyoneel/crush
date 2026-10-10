@@ -129,12 +129,16 @@ type ToolResult struct {
 
 func (ToolResult) isPart() {}
 
-// HookRun records a single hook execution in the transcript.
+// HookRun records a single hook execution in the transcript. Async
+// marks a hook that ran fire-and-forget: its transcript line carries a
+// status glyph (pending dot, tick, or cross), which a synchronous run
+// does not.
 type HookRun struct {
 	Event    string `json:"event"`
 	Name     string `json:"name"`
 	Decision string `json:"decision"`
 	Status   string `json:"status,omitempty"`
+	Async    bool   `json:"async,omitempty"`
 }
 
 // HookContent is a transcript annotation for lifecycle hook runs

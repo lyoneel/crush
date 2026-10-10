@@ -90,7 +90,7 @@ func TestSelectedSmallModelReadsConfig(t *testing.T) {
 	require.Equal(t, "Small Model", small.CatwalkCfg.Name)
 }
 
-func TestModelInfoPlacesBalanceAfterBothModels(t *testing.T) {
+func TestModelInfoPlacesBalanceBeforeBothModels(t *testing.T) {
 	m := stackTestModel(t)
 	m.hyperCredits = intPtr(42)
 	m.com.Config().Providers.Set("hyper", config.ProviderConfig{ID: "hyper", Name: "Charm Hyper"})
@@ -109,8 +109,8 @@ func TestModelInfoPlacesBalanceAfterBothModels(t *testing.T) {
 	plain := m.modelInfo(40, false)
 	balance = strings.Index(plain, "Hypercredits")
 	require.GreaterOrEqual(t, balance, 0, "the balance must render")
-	require.Less(t, strings.Index(plain, "Small Model"), balance,
-		"the landing layout must keep the balance after both models")
+	require.Less(t, balance, strings.Index(plain, "Big Model"),
+		"the landing layout must also render the balance before the models")
 }
 
 func intPtr(i int) *int { return &i }

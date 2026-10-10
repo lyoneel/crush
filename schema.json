@@ -98,7 +98,7 @@
             "type": "array"
           },
           "type": "object",
-          "description": "User-defined shell commands that fire on hook events (e.g. PreToolUse)"
+          "description": "User-defined shell commands that fire on hook events (PreToolUse"
         },
         "env": {
           "additionalProperties": {
@@ -129,6 +129,11 @@
           "type": "integer",
           "description": "Timeout in seconds for the hook command",
           "default": 30
+        },
+        "async": {
+          "type": "boolean",
+          "description": "Run this hook fire-and-forget instead of blocking the turn or tool call",
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -925,6 +930,11 @@
           ],
           "description": "Exit banner style after quitting Crush",
           "default": "default"
+        },
+        "sidebar_minimalism": {
+          "type": "boolean",
+          "description": "Hide disabled MCPs and LSPs that never activated in the sidebar",
+          "default": true
         }
       },
       "additionalProperties": false,

@@ -416,6 +416,10 @@ type UI struct {
 	// forceCompactMode tracks whether compact mode is forced by user toggle
 	forceCompactMode bool
 
+	// sidebarMinimalism tracks whether the sidebar hides disabled MCPs and
+	// LSPs that never activated (the Toggle Compact Sidebar command)
+	sidebarMinimalism bool
+
 	// isCompact tracks whether we're currently in compact layout mode (either
 	// by user toggle or auto-switch based on window size)
 	isCompact bool
@@ -603,6 +607,9 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 
 	// Initialize compact mode from config
 	ui.forceCompactMode = com.Config().Options.TUI.CompactMode
+	// Initialize the sidebar minimalism filter from config (nil-safe;
+	// absent key means enabled).
+	ui.sidebarMinimalism = com.Config().Options.TUI.IsSidebarMinimalism()
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -2131,11 +2138,17 @@ func (m *UI) handleChildSessionMessage(event pubsub.Event[message.Message]) tea.
 }
 
 func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
-	var cmds []tea.Cmd
 	action := m.dialog.Update(msg)
 	if action == nil {
-		return tea.Batch(cmds...)
+		return nil
 	}
+
+	return m.handleDialogAction(action)
+}
+
+// handleDialogAction dispatches a resolved dialog action.
+func (m *UI) handleDialogAction(action dialog.Action) tea.Cmd {
+	var cmds []tea.Cmd
 
 	isOnboarding := m.state == uiOnboarding
 
@@ -2264,6 +2277,18 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionToggleCompactMode:
 		cmds = append(cmds, m.toggleCompactMode())
+		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleSidebarMinimalism:
+		m.sidebarMinimalism = !m.sidebarMinimalism
+		if err := m.com.Workspace.SetSidebarMinimalism(config.ScopeGlobal, m.sidebarMinimalism); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "disabled"
+			if m.sidebarMinimalism {
+				status = "enabled"
+			}
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Sidebar minimalism "+status)))
+		}
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionTogglePills:
 		if cmd := m.togglePillsExpanded(); cmd != nil {

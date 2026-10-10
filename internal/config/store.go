@@ -564,6 +564,14 @@ func (s *ConfigStore) SetCompactMode(scope Scope, enabled bool) error {
 	})
 }
 
+// SetSidebarMinimalism sets the sidebar minimalism setting and persists it.
+func (s *ConfigStore) SetSidebarMinimalism(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().SidebarMinimalism = &enabled
+		return map[string]any{"options.tui.sidebar_minimalism": enabled}
+	})
+}
+
 // SetTransparentBackground sets the transparent background setting and persists it.
 func (s *ConfigStore) SetTransparentBackground(scope Scope, enabled bool) error {
 	return s.update(scope, func(c *Config) map[string]any {

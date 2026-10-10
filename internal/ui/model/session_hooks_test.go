@@ -140,8 +140,10 @@ func TestFireSessionSwitchHookAsyncPendingThenDone(t *testing.T) {
 	}
 	require.NotEmpty(t, pendingMsg.runs, "the pending command carries the running runs")
 	require.Equal(t, hooks.StatusRunning, pendingMsg.runs[0].Status)
+	require.True(t, pendingMsg.runs[0].Async, "the pending runs are marked async so the line carries the status glyph")
 	require.Len(t, runsMsg.runs, 1)
 	require.Equal(t, "", runsMsg.runs[0].Status, "the completion carries the final status")
+	require.True(t, runsMsg.runs[0].Async, "the completion runs are marked async so the line carries the status glyph")
 
 	logFile := filepath.Join(dir, "hooks.log")
 	data, err := os.ReadFile(logFile)

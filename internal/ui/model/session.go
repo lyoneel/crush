@@ -18,8 +18,8 @@ import (
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
-	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/chat"
+	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/crush/internal/ui/util"
 	"github.com/charmbracelet/x/ansi"
@@ -292,13 +292,13 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session, load loadSes
 				seen[h.Command] = true
 				runs = append(runs, message.HookRun{
 					Event: hooks.EventPreSessionSwitch, Name: h.DisplayName(),
-					Decision: "none", Status: hooks.StatusRunning,
+					Decision: "none", Status: hooks.StatusRunning, Async: true,
 				})
 			}
 			return switchHookPendingMsg{gen: gen, runs: runs}
 		}
 		done := func() tea.Msg {
-			return switchHookRunsMsg{gen: gen, runs: m.runSwitchHook(runner, sessionID, previousPayload, nextPayload)}
+			return switchHookRunsMsg{gen: gen, runs: asyncHookRuns(m.runSwitchHook(runner, sessionID, previousPayload, nextPayload))}
 		}
 		return tea.Batch(pending, done)
 	}
@@ -307,6 +307,16 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session, load loadSes
 		runs := m.runSwitchHook(runner, sessionID, previousPayload, nextPayload)
 		return switchHookDoneMsg{gen: gen, runs: runs, load: load}
 	}
+}
+
+// asyncHookRuns marks every run as fired asynchronously so the
+// transcript line carries the status glyph; the glyph only appears on
+// fire-and-forget hooks.
+func asyncHookRuns(runs []message.HookRun) []message.HookRun {
+	for i := range runs {
+		runs[i].Async = true
+	}
+	return runs
 }
 
 // runSwitchHook runs the PreSessionSwitch hooks and converts the result

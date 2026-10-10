@@ -164,13 +164,17 @@ func anyMCPStarting(states map[string]mcp.ClientInfo) bool {
 }
 
 // mcpInfo renders the MCP status section showing active MCP clients and their
-// tool/prompt counts.
-func (m *UI) mcpInfo(width, maxItems int, isSection bool) string {
+// tool/prompt counts. With the sidebar flag the section hides disabled
+// servers; the landing view and the compact details keep the full list.
+func (m *UI) mcpInfo(width, maxItems int, isSection, sidebar bool) string {
 	var mcps []mcp.ClientInfo
 	t := m.com.Styles
 
-	for _, mcp := range m.com.Config().MCP.Sorted() {
-		if state, ok := m.mcpStates[mcp.Name]; ok {
+	for _, cfg := range m.com.Config().MCP.Sorted() {
+		if state, ok := m.mcpStates[cfg.Name]; ok {
+			if sidebar && state.State == mcp.StateDisabled {
+				continue
+			}
 			mcps = append(mcps, state)
 		}
 	}

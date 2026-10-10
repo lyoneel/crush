@@ -709,7 +709,7 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 	for range 10 {
 		require.NotNil(t, m.selectedLargeModel())
 		m.selectedSmallModel()
-		m.lspInfo(40, 5, true)
+		m.lspInfo(40, 5, true, false)
 		require.Equal(t, 3, m.lspErrorCount())
 	}
 

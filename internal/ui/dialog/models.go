@@ -120,11 +120,11 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 
 	m.keyMap.Tab = key.NewBinding(
 		key.WithKeys("tab", "shift+tab"),
-		key.WithHelp("⇥/⇤", "toggle type"),
+		key.WithHelp("tab", "toggle type"),
 	)
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),
-		key.WithHelp("⏎", "select"),
+		key.WithHelp("enter", "confirm"),
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
 		key.WithKeys("shift+enter"),
@@ -132,11 +132,11 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
-		key.WithHelp("Ctl+e", "edit"),
+		key.WithHelp("ctrl+e", "edit"),
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↑/↓", "move"),
+		key.WithHelp("↑/↓", "choose"),
 	)
 	m.keyMap.Next = key.NewBinding(
 		key.WithKeys("down", "ctrl+n"),
@@ -175,7 +175,6 @@ func (m *Models) ID() string {
 func (m *Models) HandleMsg(msg tea.Msg) Action {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		slog.Info("models dialog key", "string", msg.String(), "code", msg.Code, "mod", msg.Mod)
 		switch {
 		case key.Matches(msg, m.keyMap.Close):
 			return ActionClose{}

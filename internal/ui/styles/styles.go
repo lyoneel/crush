@@ -24,7 +24,6 @@ const (
 	SpinnerIcon     string = "⋯"
 	LoadingIcon     string = "⟳"
 	ModelIcon       string = "◇"
-	SmallModelIcon  string = "◊"
 	HypercreditIcon string = "◆"
 
 	ArrowRightIcon string = "→"
@@ -271,7 +270,8 @@ type Styles struct {
 
 	// ModelInfo (model name, provider, reasoning, token/cost summary)
 	ModelInfo struct {
-		Icon                 lipgloss.Style // Model icon (◇)
+		Icon                 lipgloss.Style // Main model icon (◇)
+		SmallIcon            lipgloss.Style // Small model icon (same glyph, subdued)
 		Name                 lipgloss.Style // Model name text
 		Provider             lipgloss.Style // "via <provider>" text
 		ProviderFallback     lipgloss.Style // Provider on its own second line

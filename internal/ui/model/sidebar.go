@@ -83,8 +83,10 @@ func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage bool, i
 // modelInfo renders the current model information including the inline
 // effort and context usage/cost, with the small model in the same
 // format on the line below, and the hypercredit balance after both.
-// With the sidebar layout the context and cost summary moves below the
-// small model; the landing view and the compact details keep it
+// With the sidebar layout the hypercredit balance moves above the
+// models, right below the folder line, and the context and cost
+// summary moves below the small model; the landing view and the
+// compact details keep the balance after the models and the context
 // attached to the main model line.
 func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 	large := m.selectedLargeModel()
@@ -96,6 +98,9 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 	}
 
 	var blocks []string
+	if sidebarLayout && credits != nil {
+		blocks = append(blocks, common.HypercreditBalance(m.com.Styles, *credits), "")
+	}
 	if large != nil {
 		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, styles.ModelIcon, false))
 	}
@@ -110,7 +115,7 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 			EstimatedUsage: m.session.EstimatedUsage,
 		}))
 	}
-	if credits != nil {
+	if !sidebarLayout && credits != nil {
 		blocks = append(blocks, "", common.HypercreditBalance(m.com.Styles, *credits))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)

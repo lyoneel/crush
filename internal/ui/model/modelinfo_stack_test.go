@@ -100,10 +100,17 @@ func TestModelInfoPlacesBalanceAfterBothModels(t *testing.T) {
 		ModelCfg:   config.SelectedModel{Provider: "hyper", Model: "Hyper/big-model"},
 	}
 
-	out := m.modelInfo(40, true)
-	balance := strings.Index(out, "Hypercredits")
+	sidebar := m.modelInfo(40, true)
+	balance := strings.Index(sidebar, "Hypercredits")
 	require.GreaterOrEqual(t, balance, 0, "the balance must render")
-	require.Less(t, strings.Index(out, "Small Model"), balance, "the small model must render before the balance")
+	require.Less(t, balance, strings.Index(sidebar, "Big Model"),
+		"the sidebar layout must render the balance above the models, below the folder line")
+
+	plain := m.modelInfo(40, false)
+	balance = strings.Index(plain, "Hypercredits")
+	require.GreaterOrEqual(t, balance, 0, "the balance must render")
+	require.Less(t, strings.Index(plain, "Small Model"), balance,
+		"the landing layout must keep the balance after both models")
 }
 
 func intPtr(i int) *int { return &i }

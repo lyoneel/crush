@@ -396,7 +396,7 @@ func (p *Permissions) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	// of overflowing. The dialog frame supplies the padding, so this renders
 	// the hint line without the extra help view inset that renderDialogHelp
 	// applies for RenderContext dialogs.
-	helpView := shortHelpLine(&p.help, p.ShortHelp(), contentWidth)
+	helpView := shortHelpLine(&p.help, p.symbolShortHelp(), contentWidth)
 
 	p.defaultDiffSplitMode = width >= splitModeMinWidth
 
@@ -817,6 +817,15 @@ func (p *Permissions) ShortHelp() []key.Binding {
 	}
 
 	return bindings
+}
+
+// symbolShortHelp renders ShortHelp through the symbol translation when
+// the config style is on; the canonical spellings otherwise.
+func (p *Permissions) symbolShortHelp() []key.Binding {
+	if p.com.Config().IsSymbolHintsSafe() {
+		return common.SymbolBindings(p.ShortHelp())
+	}
+	return p.ShortHelp()
 }
 
 // FullHelp implements [help.KeyMap].

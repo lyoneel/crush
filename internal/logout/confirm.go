@@ -129,7 +129,7 @@ func (m confirmModel) content() string {
 	b.WriteString(" ")
 	b.WriteString(renderButton("No", !m.yes))
 	b.WriteString("\n\n  ")
-	b.WriteString(m.help.View(m.keymap))
+	b.WriteString(conditionalHelpView(m.help, m.keymap))
 	b.WriteString("\n")
 	return b.String()
 }

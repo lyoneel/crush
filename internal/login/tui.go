@@ -399,7 +399,7 @@ func (m authModel) content() string {
 	}
 
 	b.WriteString("\n\n  ")
-	b.WriteString(m.help.View(m.keymap))
+	b.WriteString(conditionalHelpView(m.help, m.keymap))
 	b.WriteString("\n")
 	b.WriteString(trailingSpace)
 	return b.String()

@@ -29,6 +29,23 @@ The upstream README below stays untouched. This fork adds:
 6. MCP capability counts in the LSP count style
 7. Select-both model binding: confirm the chosen model for the large
    and the small task model in one action
+8. Minimalist sidebar: disabled MCPs and LSPs that never activated
+   stay out of the sidebar (active LSPs stay visible, even after a
+   restart); the landing view keeps the full picture
+9. Sidebar minimalism toggle: `/` > Toggle Minimalist Sidebar switches
+   the sidebar filter (persisted, on by default)
+10. Hypercredits visibility toggle: `/` > Toggle Hypercredits hides
+    or shows the balance everywhere it renders and skips the balance
+    fetches while hidden (persisted, shown by default)
+11. Symbol key hints: key hints render as keyboard symbols (`ctl+c`,
+    `⇧+⏎`, `↕`), with platform-aware Alt on macOS; `/` > Toggle
+    Symbol Hints switches back to the upstream spellings (persisted,
+    symbols by default)
+12. Mode badges: the status bar always carries a mode badge, the
+    standard input in green (`NORM`), plus `PLAN` and `YOLO` without
+    the "MODE" suffix
+13. Fork build version stamp: `crush --version` reads like
+    `v0.98.1-ly-15`, the upstream release plus a fork build counter
 
 The rest of this README is the upstream README, unmodified.
 
@@ -216,18 +233,14 @@ go install -tags sqlite3_dotlk github.com/charmbracelet/crush@latest
 
 ## Getting Started
 
-The quickest way to get started is to choose a [Hyper][hyper] model from the 
-little model picker. Follow the steps to authenticate and you're ready to go.
+The quickest way to get started is to choose a [Hyper][hyper] model from model
+picker. Follow the steps to authenticate and you'll be good to go.
+
+[Hyper], from Charm, is the official Crush provider. It’s subscription-based
+and optimized for Crush. It’s privacy focused, with zero data retention (ZDR)
+and is designed to comply with GDPR. [More on Hyper][hyper].
 
 <p><a href="https://hyper.charm.land"><img width="340" height="200" alt="Charm Hyper" src="https://github.com/user-attachments/assets/50875289-7992-454d-9f14-9f790413fb5e" /></a></p>
-
-[Hyper][hyper], from Charm, is the official model provider for Crush. It’s 
-built  on open-weight models and is optimized for Crush, with an emphasis 
-on high-quality inference. There are subscription and prepaid options, including zero data retention 
-(ZDR). It's also GDPR compliant!
-
-[More on Hyper][hyper].
-
 
 ## API Keys
 
@@ -1047,12 +1060,8 @@ collected.
 Details on exactly what’s collected are in the source code ([here](https://github.com/charmbracelet/crush/tree/main/internal/event)
 and [here](https://github.com/charmbracelet/crush/blob/main/internal/llm/agent/event.go)).
 
-Also, when you use Crush with [Hyper][hyper], your Crush usage metrics may 
-be associated with your Hyper account to help us improve the service and
-diagnose issues. For more information, see [the Hyper Privacy Policy](https://hyper.charm.land/legal/privacy-policy).
-
-Either way, you can opt out of metrics collection at any time by setting 
-the following  in your environment:
+You can opt out of metrics collection at any time by setting the environment
+variable by setting the following in your environment:
 
 ```bash
 export CRUSH_DISABLE_METRICS=1

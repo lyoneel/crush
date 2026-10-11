@@ -93,7 +93,7 @@ func NewReasoning(com *common.Common) (*Reasoning, error) {
 	)
 	r.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↕", "choose"),
+		key.WithHelp("up/down", "choose"),
 	)
 	r.keyMap.Close = CloseKey
 

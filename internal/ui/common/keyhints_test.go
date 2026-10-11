@@ -40,7 +40,7 @@ func TestTranslateHelpGeneric(t *testing.T) {
 		{"esc", "esc"},
 		{"space", "space"},
 		{"f/pgdn", "f/pgdn"},
-		{"enter", "enter"},
+		{"enter", "⏎"},
 		{"y", "y"},
 	}
 	for _, c := range cases {

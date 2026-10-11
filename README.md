@@ -11,87 +11,119 @@
 > I strongly recommend that you do not use it in production. If you
 > build it, use a custom binary name, for example `crushly`.
 
+The upstream README below stays untouched. This fork adds features,
+each carrying a state tag:
+
+- **[stable]** — in daily use, tested through real sessions; breaking
+  changes are unlikely
+- **[beta]** — works end to end, exercised less; the shape may still
+  change
+- **[work-in-progress]** — usable but rough; expect changes
+
 ## Fork features
 
-The upstream README below stays untouched. This fork adds:
+| Feature | State | Description |
+|---------|-------|-------------|
+| [Hypercredit balance for gateway-served Hyper models](#hypercredit-balance-for-gateway-served-hyper-models) | [stable] | Balance on gateway-served models, not just the direct provider |
+| [Small model display](#small-model-display) | [stable] | The small task model below the main one on the initial screen and sidebar |
+| [MCP capability counts in the LSP count style](#mcp-capability-counts-in-the-lsp-count-style) | [stable] | Per-server capability counts, matching the LSP display |
+| [Select-both model binding](#select-both-model-binding) | [stable] | One confirmation applies the model to both task sizes |
+| [Minimalist sidebar](#minimalist-sidebar) | [stable] | Disabled and never-activated resources out of the sidebar |
+| [Hypercredits visibility toggle](#hypercredits-visibility-toggle) | [stable] | Command to hide the balance and stop its fetches |
+| [Visually stable status bar](#visually-stable-status-bar) | [stable] | A badge in every mode; no status bar movement on change |
+| [Small model effort](#small-model-effort) | [beta] | The small model forced to its lowest reasoning effort |
+| [Symbol key hints](#symbol-key-hints) | [beta] | Keyboard-symbol hints with a toggle back to upstream spellings |
+| [User lifecycle hooks](#user-lifecycle-hooks) | [work-in-progress] | Scripts at session events, per-hook async, blocking pre-events |
 
-### Hypercredit balance for gateway-served Hyper models
+### Hypercredit balance for gateway-served Hyper models [stable]
 
 Upstream shows the balance only on the direct `hyper` provider; the
 fork also shows it for models served through a gateway under
 `Hyper/` model ids or `/hyper/` path segments (matched in any letter
-case). The user reaches Hyper models through a gateway for easy
-access from every device, and the balance must stay visible wherever
-the models come from.
+case).
 
-### User lifecycle hooks
+I reach Hyper models through a gateway because it gives me easy
+access to different services from all my devices, and Hyper is one
+of them. Without this change I lose the credits feature on every
+model the gateway serves.
 
-Shell-level automation tied to session events, without keeping a
-fork of the agent logic. Hooks register per event in the agent
-config; each one is a command with a name and a timeout (default 30
-seconds). Every payload on stdin also carries `event`, `session_id`,
-`cwd`, and the `context_usage` snapshot; the environment carries
-`CRUSH_SESSION_ID` among its variables. Where a field below says
-`session_id`, that is the identifier string, not the session body.
+### Small model display [stable]
 
-| Event | Sync/Async | Can block | Matcher | Extra stdin fields |
-|-------|------------|-----------|---------|--------------------|
-| `PreToolUse` | both, `async: true` for fire-and-forget | yes — exit 2 blocks the tool call, exit 49 halts the turn; can rewrite the input | regex on the tool name, empty matches all | `tool_name`, `tool_input` (parsed JSON object) |
-| `PostToolUse` | both | no | regex on the tool name, empty matches all | `tool_name`, `tool_input`, `tool_output` |
-| `PrePrompt` | both | yes | none | `prompt` |
-| `PostPrompt` | both | no | none | `prompt`, `session` (id, title, counts, cost snapshot) |
-| `PostResponse` | both | no | none | `response`, `session` (id, title, counts, cost snapshot) |
-| `PreSession` | both | no | none | `prompt`, `session` (id, title, counts, cost snapshot) |
-| `PreSessionSwitch` | both | yes | none | `previous_session` (null when leaving a first session), `new_session` (both snapshots, not just the id) |
+The small task model now displays on the initial screen and in the
+sidebar, in the same format as the main model, right below it.
+Titles and sub-agent work ride on that model; the user sees which
+one handles them at a glance.
 
-### Model context usage in hook payloads
+### MCP capability counts in the LSP count style [stable]
 
-Every hook payload and hook environment carries the model context
-usage. Hook scripts need to know which model runs and how full its
-context window is, so they can react, warn, or block.
+MCP servers advertise capabilities (tools, prompts, resources), and
+a server carrying several of them used to spread the sidebar entry
+over multiple lines. Each server now shows a compact count in the
+same style as the LSP section, which keeps the entry to one line in
+most cases and makes the two resource sections visually consistent.
 
-### Small model display with its enforced reasoning effort
+### Select-both model binding [stable]
 
-The titles and sub-agent work ride on a different model; the user
-sees which one and how much reasoning it uses at a glance.
+Model selection shows the large and the small task model in the same
+dialog, and before the small model display existed I often had no
+idea which small model was set. I usually run both task sizes on the
+same model (cheap or local ones), and setting them by hand meant
+selecting, confirming, and re-selecting through the same dialog
+twice. `shift+enter` applies the chosen model to both task sizes in
+one action.
 
-### Real model metadata from gateway model discovery
+### Minimalist sidebar [stable]
 
-Context window, pricing, and reasoning capabilities. Discovered
-models need real values for the UI and the cost math.
+Minimalist sidebar features can be enabled or disabled on demand via
+the `Toggle Minimalist Sidebar` command:
 
-### MCP capability counts in the LSP count style
+- Disabled MCPs are not displayed.
+- LSPs that are disabled, or never activated in the session, are not
+  displayed.
 
-Visual consistency between the LSP and MCP sections.
+This reduces the visual charge in the sidebar. The sidebar is the
+daily-driver screen; disabled resources only add visual charge
+there, and the ones that matter come back the moment they start
+working.
 
-### Select-both model binding
+NOTE: the main initial screen is untouched by this feature; only
+the sidebar is affected.
 
-Confirm the chosen model for the large and the small task model in
-one action. Switching both models by hand costs four selections
-where one should do.
+The choice persists across restarts (on by default).
 
-### Minimalist sidebar
+### Hypercredits visibility toggle [stable]
 
-Disabled MCPs and LSPs that never activated stay out of the sidebar
-(active LSPs stay visible, even after a restart); the landing view
-keeps the full picture. The sidebar is the daily-driver screen, and
-unstarted or disabled resources are noise there.
+The hypercredits balance display can be enabled or disabled on
+demand via the `Toggle Hypercredits` command. Hidden, the balance
+stays out of every surface it renders in and the display-only
+balance fetches stop; the fetch is wanted in the sidebar but not
+always in the header. The choice persists across restarts (shown by
+default).
 
-### Sidebar minimalism toggle
+### Visually stable status bar [stable]
 
-`/` > Toggle Minimalist Sidebar switches the sidebar filter
-(persisted, on by default). One keybinding habit for when the full
-resource picture is needed, without editing the config file.
+The status bar now carries a `NORM` badge while neither plan nor
+yolo is active, alongside the existing `PLAN` and `YOLO` badges.
 
-### Hypercredits visibility toggle
+The real problem is movement: the shift does not happen between
+plan and yolo — both carry a badge — but on entering or leaving the
+standard mode, which had no badge, and the status bar text moved
+horizontally on every such transition. The standard mode never
+needed a badge, but with one in every mode the bar keeps the same
+shape all the time, and that movement is gone.
 
-`/` > Toggle Hypercredits hides or shows the balance everywhere it
-renders and skips the balance fetches while hidden (persisted, shown
-by default). The balance is wanted in the sidebar but not always in
-the header, and the fetch is display-only data, so hiding it should
-also stop calling the endpoint.
+The "MODE" word is gone from all of them: the UI already offers a
+good amount of visual cues, and the word only occupied space that
+other status bar elements can use.
 
-### Symbol key hints
+### Small model effort [beta]
+
+The small model exists for small tasks, so the fork forces its
+reasoning effort down to the lowest level the model offers,
+whatever the UI selected; the display shows the enforced level, not
+the selection.
+
+### Symbol key hints [beta]
 
 Key hints render as keyboard symbols (`ctl+c`, `⇧+⏎`, `↕`), with
 platform-aware Alt on macOS. `/` > Toggle Symbol Hints switches back
@@ -100,12 +132,52 @@ read faster once learned, while the canonical spellings match
 upstream documentation and muscle memory; each user switches per
 taste.
 
-### Mode badges
+### User lifecycle hooks [work-in-progress]
 
-The status bar always carries a mode badge: the standard input in
-green (`NORM`), plus `PLAN` and `YOLO` without the "MODE" suffix. A
-badge in every mode keeps the status bar visually stable, with no
-horizontal movement of the help hints when the mode changes.
+Shell-level automation tied to session events, without keeping a
+fork of the agent logic. Hooks register per event in the agent
+config; each one is a command with a name and a timeout (default 30
+seconds).
+
+Every payload on stdin carries the fields below; the event table
+then lists the extra fields each event adds. The context usage
+snapshot travels in both the payload and the environment so hook
+scripts can react, warn, or block on how full the serving model's
+window is; `context_window` is 0 when the model publishes no window
+(treat 0 as unknown), and `estimated_usage` says whether the token
+counters are estimates. Model discovery through the gateway
+parses the `metadata` block on the `/models` response (context
+window, max output tokens, reasoning capabilities, pricing) so
+discovered models carry real values for this snapshot, the UI, and
+the cost math; user-declared models in the config still override
+discovery.
+
+| Field | Contains |
+|-------|----------|
+| `event` | The event name, for example `PrePrompt` |
+| `session_id` | The session identifier string, not the session body |
+| `cwd` | The working directory the hook runs in |
+| `context_usage` | `model_id`, `context_window`, `estimated_usage`; omitted when no snapshot is available |
+
+NOTES:
+
+- The environment carries the same data as variables:
+  `CRUSH_SESSION_ID`, `CRUSH_MODEL_ID`, `CRUSH_CONTEXT_WINDOW`,
+  `CRUSH_ESTIMATED_USAGE`, plus the event-specific ones.
+- Where the event table says `session` as a field, that is the
+  session snapshot object (`id`, `title`, `message_count`,
+  `prompt_tokens`, `completion_tokens`, `cost`, `updated_at`), not
+  the identifier string.
+
+| Event | Sync/Async | Can block | Matcher | Extra stdin fields |
+|-------|------------|-----------|---------|--------------------|
+| `PreToolUse` | both, `async: true` for fire-and-forget | yes — exit 2 blocks the tool call, exit 49 halts the turn; can rewrite the input | regex on the tool name, empty matches all | `tool_name`, `tool_input` |
+| `PostToolUse` | both | no | regex on the tool name, empty matches all | `tool_name`, `tool_input`, `tool_output` |
+| `PrePrompt` | both | yes | none | `prompt` |
+| `PostPrompt` | both | no | none | `prompt`, `session` |
+| `PostResponse` | both | no | none | `response`, `session` |
+| `PreSession` | both | no | none | `prompt`, `session` |
+| `PreSessionSwitch` | both | yes | none | `previous_session` (null when leaving a first session), `new_session` |
 
 The rest of this README is the upstream README, unmodified.
 

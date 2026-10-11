@@ -34,6 +34,18 @@ The upstream README below stays untouched. This fork adds:
    restart); the landing view keeps the full picture
 9. Sidebar minimalism toggle: `/` > Toggle Minimalist Sidebar switches
    the sidebar filter (persisted, on by default)
+10. Hypercredits visibility toggle: `/` > Toggle Hypercredits hides
+    or shows the balance everywhere it renders and skips the balance
+    fetches while hidden (persisted, shown by default)
+11. Symbol key hints: key hints render as keyboard symbols (`ctl+c`,
+    `⇧+⏎`, `↕`), with platform-aware Alt on macOS; `/` > Toggle
+    Symbol Hints switches back to the upstream spellings (persisted,
+    symbols by default)
+12. Mode badges: the status bar always carries a mode badge, the
+    standard input in green (`NORM`), plus `PLAN` and `YOLO` without
+    the "MODE" suffix
+13. Fork build version stamp: `crush --version` reads like
+    `v0.98.1-ly-15`, the upstream release plus a fork build counter
 
 The rest of this README is the upstream README, unmodified.
 

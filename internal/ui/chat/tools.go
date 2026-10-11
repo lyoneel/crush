@@ -1006,10 +1006,10 @@ func renderHookLine(sty *styles.Styles, hi hooks.HookInfo, label, tag string, li
 		// finish normally.
 		var glyph string
 		var glyphStyle lipgloss.Style
-		switch {
-		case hi.Status == hooks.StatusRunning:
+		switch hi.Status {
+		case hooks.StatusRunning:
 			glyph, glyphStyle = styles.ToolPending, sty.Tool.IconPending
-		case hi.Status == "":
+		case "":
 			glyph, glyphStyle = styles.ToolSuccess, sty.Tool.JobIconSuccess
 		default:
 			glyph, glyphStyle = styles.ToolError, sty.Tool.HookFailed

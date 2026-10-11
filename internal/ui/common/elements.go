@@ -82,7 +82,7 @@ func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, 
 
 	providerPart := ""
 	if providerName != "" {
-		providerPart = t.ModelInfo.Provider.Render("["+providerName+"]")
+		providerPart = t.ModelInfo.Provider.Render("[" + providerName + "]")
 	}
 
 	var firstLine string

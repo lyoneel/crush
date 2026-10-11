@@ -83,14 +83,10 @@ func TranslateHelp(h key.Help) key.Help {
 	if out == "tab" {
 		out = "⇆"
 	}
-	// A bare "enter" stays the word: 39 bindings declare it and the
-	// spelled-out form is the fork's shipped look for it. Only the
-	// enter word trailing a modifier glyph compacts ("⇧+enter" →
-	// "⇧+⏎"); "⇧+enter" cannot appear otherwise because a bare enter
-	// never carries a prefix.
-	if h.Key != out && strings.HasSuffix(out, "enter") {
-		out = strings.ReplaceAll(out, "enter", "⏎")
+	if out == "enter" {
+		out = "⏎"
 	}
+	out = strings.ReplaceAll(out, "enter", "⏎")
 	out = strings.ReplaceAll(out, "tab", "⇆")
 	h.Key = out
 	return h

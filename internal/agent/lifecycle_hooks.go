@@ -25,13 +25,6 @@ func lifecycleRunnerFromStore(cfg *config.ConfigStore, eventName string) *hooks.
 	return hooks.NewRunner(eventHooks, cfg.WorkingDir(), cfg.WorkingDir())
 }
 
-// fireLifecycleHook runs a lifecycle event's hooks asynchronously and
-// ignores their decisions: lifecycle hooks are informational. A nil
-// runner is a no-op; errors and hook context land in the log.
-func fireLifecycleHook(runner *hooks.Runner, eventName, sessionID string, data hooks.SessionEventData) {
-	hooks.FireAsync(runner, eventName, sessionID, data)
-}
-
 // runAndRecordLifecycleHook runs a lifecycle event's hooks and records the
 // run as a hook-only message in the session transcript, so the chat shows
 // which hooks ran next to the turn. Decisions are ignored; an empty result
@@ -51,7 +44,7 @@ func runAndRecordLifecycleHook(ctx context.Context, messages message.Service, ru
 	}
 	runs := make([]message.HookRun, len(result.Hooks))
 	for i, h := range result.Hooks {
-		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status}
+		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status, Async: h.Async}
 	}
 	recordCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -132,9 +125,9 @@ func pendingLifecycleRuns(eventName string, hookCfgs []config.HookConfig) []mess
 }
 
 // runLifecycleHookRuns runs a lifecycle event's hooks and converts the
-// result into transcript runs; an empty result records nothing. The
-// only caller is the asynchronous fire: every run it records is marked
-// async so the transcript line carries the status glyph.
+// result into transcript runs; an empty result records nothing. Each
+// run carries the hook's own async flag, so the transcript glyph marks
+// exactly the fire-and-forget hooks.
 func runLifecycleHookRuns(ctx context.Context, runner *hooks.Runner, eventName, sessionID string, data hooks.SessionEventData) []message.HookRun {
 	result, err := runner.RunLifecycle(ctx, eventName, sessionID, data)
 	if err != nil {
@@ -146,7 +139,7 @@ func runLifecycleHookRuns(ctx context.Context, runner *hooks.Runner, eventName, 
 	}
 	runs := make([]message.HookRun, len(result.Hooks))
 	for i, h := range result.Hooks {
-		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status, Async: true}
+		runs[i] = message.HookRun{Event: eventName, Name: h.Name, Decision: h.Decision, Status: h.Status, Async: h.Async}
 	}
 	return runs
 }
@@ -155,16 +148,13 @@ func runLifecycleHookRuns(ctx context.Context, runner *hooks.Runner, eventName, 
 // command already honors its own Timeout; this bounds the whole event.
 const lifecycleHookTimeout = 30 * time.Second
 
-// fireLifecycleHookDefault runs a lifecycle event's hooks, synchronous
-// by default and recorded in the transcript. When every configured hook
-// sets async: true the fire becomes fire-and-forget. Decisions are
-// ignored; a nil runner or an empty result records nothing.
-// fireLifecycleHookDefault runs a lifecycle event's hooks, synchronous
-// by default and recorded in the transcript; async: true switches the
-// fire to fire-and-forget with an in-place updating transcript line.
-// Decisions are ignored; a nil runner or an empty result records
-// nothing. The usage source, when non-nil, resolves the model context
-// snapshot embedded in the hook payload.
+// fireLifecycleHookDefault runs a lifecycle event's hooks and records
+// the run in the transcript. Per-hook async: hooks with async: true
+// fire fire-and-forget inside the runner while the synchronous hooks
+// run inline under the event timeout. Decisions are ignored; a nil
+// runner or an empty result records nothing. The usage source, when
+// non-nil, resolves the model context snapshot embedded in the hook
+// payload.
 func fireLifecycleHookDefault(messages message.Service, cfg *config.ConfigStore, eventName, sessionID string, data hooks.SessionEventData, usageSource hooks.UsageSourceFunc) {
 	runner := lifecycleRunnerFromStore(cfg, eventName)
 	if runner == nil {
@@ -172,10 +162,6 @@ func fireLifecycleHookDefault(messages message.Service, cfg *config.ConfigStore,
 	}
 	if usageSource != nil {
 		runner.SetUsageSource(usageSource)
-	}
-	if hooks.AllAsync(cfg.Config().Hooks[eventName]) {
-		fireRecordedLifecycleHook(messages, runner, eventName, sessionID, data)
-		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), lifecycleHookTimeout)
 	defer cancel()

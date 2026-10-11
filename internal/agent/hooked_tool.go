@@ -58,46 +58,38 @@ func (h *hookedTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.To
 
 	var preResult hooks.AggregateResult
 	if h.runner != nil {
-		if hooks.AllAsync(h.runner.Hooks()) {
-			// Fork: async PreToolUse fires fire-and-forget and ignores
-			// every decision; the tool proceeds on the original input.
-			input := call.Input
-			go func() {
-				if _, err := h.runner.Run(context.WithoutCancel(ctx), hooks.EventPreToolUse, sessionID, call.Name, input, ""); err != nil {
-					slog.Warn("Hook execution error", "tool", call.Name, "error", err)
-				}
-			}()
-		} else {
-			result, err := h.runner.Run(ctx, hooks.EventPreToolUse, sessionID, call.Name, call.Input, "")
-			if err != nil {
-				slog.Warn("Hook execution error, proceeding with tool call",
-					"tool", call.Name, "error", err)
-			}
-			preResult = result
+		// Per-hook async: async hooks fire fire-and-forget inside the
+		// runner (detached context, decision ignored); the sync hooks
+		// run inline and own the decisions.
+		result, err := h.runner.Run(ctx, hooks.EventPreToolUse, sessionID, call.Name, call.Input, "")
+		if err != nil {
+			slog.Warn("Hook execution error, proceeding with tool call",
+				"tool", call.Name, "error", err)
+		}
+		preResult = result
 
-			if result.Decision == hooks.DecisionDeny || result.Halt {
-				reason := fmt.Sprintf("Tool call blocked by hook. Reason: %s", result.Reason)
-				if result.Halt {
-					reason = fmt.Sprintf("Turn halted by hook. Reason: %s", result.Reason)
-				}
-				resp := fantasy.NewTextErrorResponse(reason)
-				// Halt ends the whole turn; a plain deny only blocks this tool
-				// call so the model can see the error and try something else.
-				resp.StopTurn = result.Halt
-				resp.Metadata = hookMetadataJSON(result)
-				return resp, nil
+		if result.Decision == hooks.DecisionDeny || result.Halt {
+			reason := fmt.Sprintf("Tool call blocked by hook. Reason: %s", result.Reason)
+			if result.Halt {
+				reason = fmt.Sprintf("Turn halted by hook. Reason: %s", result.Reason)
 			}
+			resp := fantasy.NewTextErrorResponse(reason)
+			// Halt ends the whole turn; a plain deny only blocks this tool
+			// call so the model can see the error and try something else.
+			resp.StopTurn = result.Halt
+			resp.Metadata = hookMetadataJSON(result)
+			return resp, nil
+		}
 
-			if result.UpdatedInput != "" {
-				call.Input = result.UpdatedInput
-			}
+		if result.UpdatedInput != "" {
+			call.Input = result.UpdatedInput
+		}
 
-			// An explicit allow from a hook pre-approves the permission prompt for
-			// this tool call. Deny is already handled above; silence falls through
-			// to the normal permission flow.
-			if result.Decision == hooks.DecisionAllow {
-				ctx = permission.WithHookApproval(ctx, call.ID)
-			}
+		// An explicit allow from a hook pre-approves the permission prompt for
+		// this tool call. Deny is already handled above; silence falls through
+		// to the normal permission flow.
+		if result.Decision == hooks.DecisionAllow {
+			ctx = permission.WithHookApproval(ctx, call.ID)
 		}
 	}
 
@@ -111,32 +103,23 @@ func (h *hookedTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.To
 	}
 
 	if h.postRunner != nil && len(h.postRunner.Hooks()) > 0 {
-		if hooks.AllAsync(h.postRunner.Hooks()) {
-			// Fork: async PostToolUse fires fire-and-forget and renders
-			// nothing; the already-returned response stays untouched.
-			toolOutput := output
-			go func() {
-				if _, err := h.postRunner.Run(context.WithoutCancel(ctx), hooks.EventPostToolUse, sessionID, call.Name, call.Input, toolOutput); err != nil {
-					slog.Warn("Hook execution error", "tool", call.Name, "error", err)
-				}
-			}()
-		} else {
-			postResult, postErr := h.postRunner.Run(ctx, hooks.EventPostToolUse, sessionID, call.Name, call.Input, output)
-			if postErr != nil {
-				slog.Warn("Hook execution error", "tool", call.Name, "error", postErr)
-			}
-			// Deny and input rewrite are ignored: the tool already ran.
-			if postResult.Context != "" {
-				if resp.Content != "" {
-					resp.Content += "\n"
-				}
-				resp.Content += postResult.Context
-			}
-			if postResult.Halt {
-				resp.StopTurn = true
-			}
-			resp.Metadata = mergePostHookMetadata(resp.Metadata, postResult)
+		// Per-hook async: async hooks fire fire-and-forget inside the
+		// runner; the sync hooks run inline. Deny and input rewrite are
+		// ignored either way: the tool already ran.
+		postResult, postErr := h.postRunner.Run(ctx, hooks.EventPostToolUse, sessionID, call.Name, call.Input, output)
+		if postErr != nil {
+			slog.Warn("Hook execution error", "tool", call.Name, "error", postErr)
 		}
+		if postResult.Context != "" {
+			if resp.Content != "" {
+				resp.Content += "\n"
+			}
+			resp.Content += postResult.Context
+		}
+		if postResult.Halt {
+			resp.StopTurn = true
+		}
+		resp.Metadata = mergePostHookMetadata(resp.Metadata, postResult)
 	}
 
 	if err != nil {

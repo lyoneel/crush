@@ -15,35 +15,97 @@
 
 The upstream README below stays untouched. This fork adds:
 
-1. Hypercredit balance for gateway-served Hyper models: upstream
-   shows it only on the direct `hyper` provider, the fork also shows
-   it for models served through a gateway under `Hyper/` model ids
-   or `/hyper/` path segments (matched in any letter case)
-2. User lifecycle hooks (`PreSessionSwitch`, `PrePrompt`, `PostPrompt`,
-   `PostResponse`, `PreToolUse`, `PostToolUse`) with synchronous and
-   asynchronous (`async: true`) runs
-3. Model context usage in every hook payload and hook environment
-4. Small model display with its enforced reasoning effort
-5. Real model metadata from gateway model discovery: context window,
-   pricing, and reasoning capabilities
-6. MCP capability counts in the LSP count style
-7. Select-both model binding: confirm the chosen model for the large
-   and the small task model in one action
-8. Minimalist sidebar: disabled MCPs and LSPs that never activated
-   stay out of the sidebar (active LSPs stay visible, even after a
-   restart); the landing view keeps the full picture
-9. Sidebar minimalism toggle: `/` > Toggle Minimalist Sidebar switches
-   the sidebar filter (persisted, on by default)
-10. Hypercredits visibility toggle: `/` > Toggle Hypercredits hides
-    or shows the balance everywhere it renders and skips the balance
-    fetches while hidden (persisted, shown by default)
-11. Symbol key hints: key hints render as keyboard symbols (`ctl+c`,
-    `⇧+⏎`, `↕`), with platform-aware Alt on macOS; `/` > Toggle
-    Symbol Hints switches back to the upstream spellings (persisted,
-    symbols by default)
-12. Mode badges: the status bar always carries a mode badge, the
-    standard input in green (`NORM`), plus `PLAN` and `YOLO` without
-    the "MODE" suffix
+### Hypercredit balance for gateway-served Hyper models
+
+Upstream shows the balance only on the direct `hyper` provider; the
+fork also shows it for models served through a gateway under
+`Hyper/` model ids or `/hyper/` path segments (matched in any letter
+case). The user reaches Hyper models through a gateway for easy
+access from every device, and the balance must stay visible wherever
+the models come from.
+
+### User lifecycle hooks
+
+Shell-level automation tied to session events, without keeping a
+fork of the agent logic. Hooks register per event in the agent
+config; each one is a command with a name and a timeout (default 30
+seconds). Every payload on stdin also carries `event`, `session_id`,
+`cwd`, and the `context_usage` snapshot; the environment carries
+`CRUSH_SESSION_ID` among its variables. Where a field below says
+`session_id`, that is the identifier string, not the session body.
+
+| Event | Sync/Async | Can block | Matcher | Extra stdin fields |
+|-------|------------|-----------|---------|--------------------|
+| `PreToolUse` | both, `async: true` for fire-and-forget | yes — exit 2 blocks the tool call, exit 49 halts the turn; can rewrite the input | regex on the tool name, empty matches all | `tool_name`, `tool_input` (parsed JSON object) |
+| `PostToolUse` | both | no | regex on the tool name, empty matches all | `tool_name`, `tool_input`, `tool_output` |
+| `PrePrompt` | both | yes | none | `prompt` |
+| `PostPrompt` | both | no | none | `prompt`, `session` (id, title, counts, cost snapshot) |
+| `PostResponse` | both | no | none | `response`, `session` (id, title, counts, cost snapshot) |
+| `PreSession` | both | no | none | `prompt`, `session` (id, title, counts, cost snapshot) |
+| `PreSessionSwitch` | both | yes | none | `previous_session` (null when leaving a first session), `new_session` (both snapshots, not just the id) |
+
+### Model context usage in hook payloads
+
+Every hook payload and hook environment carries the model context
+usage. Hook scripts need to know which model runs and how full its
+context window is, so they can react, warn, or block.
+
+### Small model display with its enforced reasoning effort
+
+The titles and sub-agent work ride on a different model; the user
+sees which one and how much reasoning it uses at a glance.
+
+### Real model metadata from gateway model discovery
+
+Context window, pricing, and reasoning capabilities. Discovered
+models need real values for the UI and the cost math.
+
+### MCP capability counts in the LSP count style
+
+Visual consistency between the LSP and MCP sections.
+
+### Select-both model binding
+
+Confirm the chosen model for the large and the small task model in
+one action. Switching both models by hand costs four selections
+where one should do.
+
+### Minimalist sidebar
+
+Disabled MCPs and LSPs that never activated stay out of the sidebar
+(active LSPs stay visible, even after a restart); the landing view
+keeps the full picture. The sidebar is the daily-driver screen, and
+unstarted or disabled resources are noise there.
+
+### Sidebar minimalism toggle
+
+`/` > Toggle Minimalist Sidebar switches the sidebar filter
+(persisted, on by default). One keybinding habit for when the full
+resource picture is needed, without editing the config file.
+
+### Hypercredits visibility toggle
+
+`/` > Toggle Hypercredits hides or shows the balance everywhere it
+renders and skips the balance fetches while hidden (persisted, shown
+by default). The balance is wanted in the sidebar but not always in
+the header, and the fetch is display-only data, so hiding it should
+also stop calling the endpoint.
+
+### Symbol key hints
+
+Key hints render as keyboard symbols (`ctl+c`, `⇧+⏎`, `↕`), with
+platform-aware Alt on macOS. `/` > Toggle Symbol Hints switches back
+to the upstream spellings (persisted, symbols by default). Symbols
+read faster once learned, while the canonical spellings match
+upstream documentation and muscle memory; each user switches per
+taste.
+
+### Mode badges
+
+The status bar always carries a mode badge: the standard input in
+green (`NORM`), plus `PLAN` and `YOLO` without the "MODE" suffix. A
+badge in every mode keeps the status bar visually stable, with no
+horizontal movement of the help hints when the mode changes.
 
 The rest of this README is the upstream README, unmodified.
 

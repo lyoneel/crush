@@ -14,12 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFireLifecycleHookNilRunnerIsNoOp pins that a nil runner (no hooks
-// configured) does nothing and does not panic.
-func TestFireLifecycleHookNilRunnerIsNoOp(t *testing.T) {
-	fireLifecycleHook(nil, hooks.EventPrePrompt, "sess-1", hooks.SessionEventData{Prompt: "hi"})
-}
-
 // TestFireLifecycleHookWritesPayload pins the end-to-end firing shape: a
 // configured hook command receives the lifecycle payload on stdin.
 func TestFireLifecycleHookWritesPayload(t *testing.T) {
@@ -30,13 +24,10 @@ func TestFireLifecycleHookWritesPayload(t *testing.T) {
 		[]config.HookConfig{{Command: "cat >> " + logFile}},
 		dir, dir,
 	)
-	fireLifecycleHook(runner, hooks.EventPrePrompt, "sess-1",
+	result, err := runner.RunLifecycle(t.Context(), hooks.EventPrePrompt, "sess-1",
 		hooks.SessionEventData{Prompt: "hello hook"})
-
-	require.Eventually(t, func() bool {
-		data, err := os.ReadFile(logFile)
-		return err == nil && len(data) > 0
-	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(result.Hooks), "the single hook must report itself")
 
 	data, err := os.ReadFile(logFile)
 	require.NoError(t, err)
@@ -86,11 +77,11 @@ func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond, "an async hook must still run")
 }
 
-// TestFireLifecycleHookDefaultAsyncPendingThenDone pins the async
-// recording shape: the fire writes a pending hook record immediately
-// (so the chat can show a running line), then updates that same record
-// in place with the final statuses when the run completes.
-func TestFireLifecycleHookDefaultAsyncPendingThenDone(t *testing.T) {
+// TestFireLifecycleHookDefaultAsyncRecordsFinishedRun pins the per-hook
+// async recording shape: an async: true hook fires fire-and-forget (the
+// fire returns before the hook finishes), and the recorded run carries
+// the async flag so the transcript renders the fire-and-forget glyph.
+func TestFireLifecycleHookDefaultAsyncRecordsFinishedRun(t *testing.T) {
 	env := testEnv(t)
 	logFile := filepath.Join(env.workingDir, "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
@@ -104,10 +95,13 @@ func TestFireLifecycleHookDefaultAsyncPendingThenDone(t *testing.T) {
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, sess.ID,
 		hooks.SessionEventData{Prompt: "hello hook"}, nil)
 
-	var pendingID string
+	// The fire returns immediately (the hook is fire-and-forget); the
+	// transcript record may land in either order relative to the hook's
+	// own completion. Eventually the record must exist, finished, with
+	// the async flag set.
 	require.Eventually(t, func() bool {
 		msgs, err := env.messages.List(t.Context(), sess.ID)
-		if err != nil || len(msgs) == 0 {
+		if err != nil {
 			return false
 		}
 		for _, m := range msgs {
@@ -115,29 +109,17 @@ func TestFireLifecycleHookDefaultAsyncPendingThenDone(t *testing.T) {
 				continue
 			}
 			for _, part := range m.Parts {
-				if hc, ok := part.(message.HookContent); ok && len(hc.Hooks) > 0 {
-					if hc.Hooks[0].Status != hooks.StatusRunning {
-						return false
+				if hc, ok := part.(message.HookContent); ok {
+					for _, h := range hc.Hooks {
+						if h.Async && h.Status != hooks.StatusRunning {
+							return true
+						}
 					}
-					pendingID = m.ID
 				}
 			}
 		}
-		return pendingID != ""
-	}, 5*time.Second, 10*time.Millisecond, "an async fire must record a pending hook line before the run completes")
-
-	require.Eventually(t, func() bool {
-		msg, err := env.messages.Get(t.Context(), pendingID)
-		if err != nil {
-			return false
-		}
-		for _, part := range msg.Parts {
-			if hc, ok := part.(message.HookContent); ok {
-				return len(hc.Hooks) == 1 && hc.Hooks[0].Status == ""
-			}
-		}
 		return false
-	}, 5*time.Second, 10*time.Millisecond, "the pending record must update in place with the final status")
+	}, 5*time.Second, 10*time.Millisecond, "the async hook must record a finished run with the async flag")
 }
 
 // TestSessionPayloadConversion pins the session snapshot mapping.

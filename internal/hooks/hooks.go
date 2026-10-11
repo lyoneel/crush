@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/charmbracelet/crush/internal/config"
 	"github.com/tidwall/sjson"
 )
 
@@ -21,20 +20,6 @@ const (
 	EventPostPrompt       = "PostPrompt"
 	EventPostResponse     = "PostResponse"
 )
-
-// AllAsync reports whether every hook in the slice opts into
-// fire-and-forget execution. An empty slice is not async.
-func AllAsync(hooks []config.HookConfig) bool {
-	if len(hooks) == 0 {
-		return false
-	}
-	for _, h := range hooks {
-		if !h.Async {
-			return false
-		}
-	}
-	return true
-}
 
 // HaltExitCode is the exit code that halts the whole turn. 2 blocks the
 // current tool call; 49 sits in the no-man's-land between the

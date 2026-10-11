@@ -117,7 +117,11 @@ func (r *Runner) Hooks() []config.HookConfig {
 
 // Run executes all matching hooks for the given event and tool, returning
 // an aggregated result. toolOutput carries the tool result text for
-// PostToolUse; other events pass an empty string.
+// PostToolUse; other events pass an empty string. A hook with async: true
+// fires fire-and-forget: it runs on a detached context, its decision is
+// ignored, and its HookInfo carries Async so the transcript renders the
+// fire-and-forget glyph. The aggregate decision comes from the
+// synchronous hooks alone.
 func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolInputJSON, toolOutput string) (AggregateResult, error) {
 	matching := r.matchingHooks(toolName)
 	if len(matching) == 0 {
@@ -144,9 +148,20 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 
 	results := make([]HookResult, len(deduped))
 	var wg sync.WaitGroup
-	wg.Add(len(deduped))
 
+	async := make(map[int]bool)
 	for i, h := range deduped {
+		if h.Async {
+			async[i] = true
+			// Fire-and-forget: detached context, decision ignored. The
+			// result slot stays zero, so the aggregate never sees it.
+			hook := h
+			go func(idx int) {
+				_ = r.runOne(context.WithoutCancel(ctx), hook, envVars, payload)
+			}(i)
+			continue
+		}
+		wg.Add(1)
 		go func(idx int, hook config.HookConfig) {
 			defer wg.Done()
 			results[idx] = r.runOne(ctx, hook, envVars, payload)
@@ -165,6 +180,7 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 			Halt:         results[i].Halt,
 			Reason:       results[i].Reason,
 			InputRewrite: results[i].UpdatedInput != "",
+			Async:        async[i],
 		}
 	}
 	slog.Info(
@@ -178,10 +194,12 @@ func (r *Runner) Run(ctx context.Context, eventName, sessionID, toolName, toolIn
 }
 
 // RunLifecycle executes all hooks configured for a lifecycle event
-// (PreSession, PreSessionSwitch, PrePrompt, PostPrompt,
-// PostResponse). Lifecycle
-// hooks have no tool name, so only hooks without a matcher match; results
-// are aggregated but callers treat the events as informational.
+// (PreSession, PreSessionSwitch, PrePrompt, PostPrompt, PostResponse).
+// Lifecycle hooks have no tool name, so only hooks without a matcher
+// match. A hook with async: true fires fire-and-forget (detached
+// context, decision ignored, HookInfo.Async set); the synchronous
+// hooks run inline and their results aggregate, but callers treat the
+// events as informational.
 func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, data SessionEventData) (AggregateResult, error) {
 	matching := r.matchingHooks("")
 	if len(matching) == 0 {
@@ -214,9 +232,18 @@ func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, 
 
 	results := make([]HookResult, len(deduped))
 	var wg sync.WaitGroup
-	wg.Add(len(deduped))
 
+	async := make(map[int]bool)
 	for i, h := range deduped {
+		if h.Async {
+			async[i] = true
+			hook := h
+			go func(idx int) {
+				_ = r.runOne(context.WithoutCancel(ctx), hook, envVars, payload)
+			}(i)
+			continue
+		}
+		wg.Add(1)
 		go func(idx int, hook config.HookConfig) {
 			defer wg.Done()
 			results[idx] = r.runOne(ctx, hook, envVars, payload)
@@ -234,6 +261,7 @@ func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, 
 			Status:   results[i].Status,
 			Halt:     results[i].Halt,
 			Reason:   results[i].Reason,
+			Async:    async[i],
 		}
 	}
 	slog.Info(
@@ -243,25 +271,6 @@ func (r *Runner) RunLifecycle(ctx context.Context, eventName, sessionID string, 
 		"decision", agg.Decision.String(),
 	)
 	return agg, nil
-}
-
-// FireAsync runs a lifecycle event's hooks in a background goroutine
-// and ignores their decisions: lifecycle hooks are informational. A nil
-// runner is a no-op; errors and hook context land in the log.
-func FireAsync(runner *Runner, eventName, sessionID string, data SessionEventData) {
-	if runner == nil {
-		return
-	}
-	go func() {
-		result, err := runner.RunLifecycle(context.Background(), eventName, sessionID, data)
-		if err != nil {
-			slog.Error("Lifecycle hook runner failed", "event", eventName, "session_id", sessionID, "error", err)
-			return
-		}
-		if result.Context != "" {
-			slog.Debug("Lifecycle hook context", "event", eventName, "session_id", sessionID, "context", result.Context)
-		}
-	}()
 }
 
 // matchingHooks returns hooks whose matcher matches the tool name (or has

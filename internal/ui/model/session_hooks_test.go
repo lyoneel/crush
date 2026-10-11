@@ -3,14 +3,13 @@ package model
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/hooks"
-	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
-	"github.com/charmbracelet/crush/internal/ui/chat"
 	"github.com/charmbracelet/crush/internal/workspace"
 	"github.com/stretchr/testify/require"
 )
@@ -113,10 +112,11 @@ func TestSessionSwitched(t *testing.T) {
 	require.False(t, sessionSwitched(a, &session.Session{ID: "a"}))
 }
 
-// TestFireSessionSwitchHookAsyncPendingThenDone pins the async shape:
-// the batch carries a pending command (running status) and a completion
-// command, and the completion carries the final statuses.
-func TestFireSessionSwitchHookAsyncPendingThenDone(t *testing.T) {
+// TestFireSessionSwitchHookAsyncHookRecordsFinishedRun pins the per-hook
+// async shape: an async: true hook fires fire-and-forget inside the
+// runner while the switch stays deferred on the synchronous completion;
+// the recorded run carries the hook's own async flag.
+func TestFireSessionSwitchHookAsyncHookRecordsFinishedRun(t *testing.T) {
 	dir := t.TempDir()
 	tTempDirForHooks = dir
 	m := newTestUI()
@@ -128,43 +128,16 @@ func TestFireSessionSwitchHookAsyncPendingThenDone(t *testing.T) {
 
 	cmd := m.fireSessionSwitchHook(&session.Session{ID: "a"}, &session.Session{ID: "b"}, loadSessionMsg{})
 	require.NotNil(t, cmd)
-	batch, ok := cmd().(tea.BatchMsg)
-	require.True(t, ok, "an async switch fire returns a command batch")
-
-	var pendingMsg switchHookPendingMsg
-	var runsMsg switchHookRunsMsg
-	for _, sub := range batch {
-		switch msg := sub().(type) {
-		case switchHookPendingMsg:
-			pendingMsg = msg
-		case switchHookRunsMsg:
-			runsMsg = msg
-		}
-	}
-	require.NotEmpty(t, pendingMsg.runs, "the pending command carries the running runs")
-	require.Equal(t, hooks.StatusRunning, pendingMsg.runs[0].Status)
-	require.True(t, pendingMsg.runs[0].Async, "the pending runs are marked async so the line carries the status glyph")
-	require.Len(t, runsMsg.runs, 1)
-	require.Equal(t, "", runsMsg.runs[0].Status, "the completion carries the final status")
-	require.True(t, runsMsg.runs[0].Async, "the completion runs are marked async so the line carries the status glyph")
+	msg := cmd()
+	done, ok := msg.(switchHookDoneMsg)
+	require.True(t, ok, "the switch fire returns a single done command that carries the deferred load")
+	require.Len(t, done.runs, 1, "the done message carries every run")
+	require.True(t, done.runs[0].Async, "the run carries the hook's own async flag for the transcript glyph")
+	require.Equal(t, hooks.EventPreSessionSwitch, done.runs[0].Event)
 
 	logFile := filepath.Join(dir, "hooks.log")
-	data, err := os.ReadFile(logFile)
-	require.NoError(t, err)
-	require.Contains(t, string(data), `"event":"PreSessionSwitch"`)
-}
-
-// TestUpdateSwitchHookLinesStaleGen pins the generation guard: a
-// completion from an abandoned switch never updates the current lines.
-func TestUpdateSwitchHookLinesStaleGen(t *testing.T) {
-	tTempDirForHooks = t.TempDir()
-	m := newTestUI()
-	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "")}
-
-	stale := switchHookRunsMsg{gen: switchHookGen.Load() - 1, runs: []message.HookRun{
-		{Event: hooks.EventPreSessionSwitch, Name: "x.sh", Decision: "none"},
-	}}
-	m.updateSwitchHookLines(stale)
-	require.Nil(t, m.chat.MessageItem(chat.HookItemID(switchHookLocalID, hooks.EventPreSessionSwitch)),
-		"a stale completion must not create lines")
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(logFile)
+		return err == nil && strings.Contains(string(data), `"event":"PreSessionSwitch"`)
+	}, 5*time.Second, 10*time.Millisecond, "the fire-and-forget hook must still receive the payload")
 }

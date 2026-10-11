@@ -154,7 +154,7 @@ func TestHookedTool_PostToolUseMergesMetadata(t *testing.T) {
 	require.Contains(t, resp.Content, "audited")
 }
 
-func TestHookedTool_PostToolUseAsyncSkipsMetadata(t *testing.T) {
+func TestHookedTool_PostToolUseAsyncHookStillReports(t *testing.T) {
 	t.Parallel()
 
 	inner := &fakeTool{name: "bash", resp: fantasy.NewTextResponse("done")}
@@ -164,8 +164,10 @@ func TestHookedTool_PostToolUseAsyncSkipsMetadata(t *testing.T) {
 
 	resp, err := tool.Run(t.Context(), fantasy.ToolCall{ID: "call-5", Name: "bash"})
 	require.NoError(t, err)
-	require.NotContains(t, resp.Metadata, "post_hook")
-	require.NotContains(t, resp.Content, "audited")
+	// Per-hook async: the runner reports the hook with its own async
+	// flag; the post-hook metadata pipeline is unchanged.
+	require.Contains(t, resp.Metadata, "post_hook")
+	require.Contains(t, resp.Metadata, `"async":true`)
 }
 
 func TestHookedTool_PostToolUseMatcherFilters(t *testing.T) {

@@ -297,11 +297,6 @@ type UI struct {
 	// PreSessionSwitch hooks: the load applies when the hooks finish.
 	pendingSwitchLoad *loadSessionMsg
 
-	// lastSwitchPendingRuns buffers the pending async switch hook runs
-	// until the session load applied, so the lines append to the new
-	// session's chat list.
-	lastSwitchPendingRuns []message.HookRun
-
 	// bangCancel cancels a running bang-mode shell command. Nil when no
 	// bang command is in progress. Set by runShellCommand, cleared by
 	// shellResultMsg. Checked by isAgentBusy and cancelAgent so that
@@ -940,33 +935,19 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.applyLoadedSession(msg.load)...)
 			m.appendSwitchHookLines(msg.runs)
 		}
-	case switchHookPendingMsg:
-		// Async switch hooks started; the session is already displayed.
-		m.lastSwitchPendingRuns = msg.runs
-	case switchHookRunsMsg:
-		m.updateSwitchHookLines(msg)
 	case loadSessionMsg:
 		// Fork: PreSessionSwitch hook. Synchronous hooks block the
 		// switch: stash the load and apply it when the hook finishes.
-		// Asynchronous hooks switch now and surface a pending line.
+		// Hooks marked async: true fire fire-and-forget inside the
+		// runner and surface their own transcript lines.
 		if hooksConfigured := m.preSessionSwitchHooksConfigured(); sessionSwitched(m.session, msg.session) && hooksConfigured {
-			isAsync := m.preSessionSwitchHooksAsync()
-			if !isAsync {
-				if cmd := m.fireSessionSwitchHook(m.session, msg.session, msg); cmd != nil {
-					m.pendingSwitchLoad = &msg
-					cmds = append(cmds, cmd)
-					return m, tea.Batch(cmds...)
-				}
-			} else if cmd := m.fireSessionSwitchHook(m.session, msg.session, msg); cmd != nil {
+			if cmd := m.fireSessionSwitchHook(m.session, msg.session, msg); cmd != nil {
+				m.pendingSwitchLoad = &msg
 				cmds = append(cmds, cmd)
+				return m, tea.Batch(cmds...)
 			}
 		}
 		cmds = append(cmds, m.applyLoadedSession(msg)...)
-		if m.lastSwitchPendingRuns != nil {
-			runs := m.lastSwitchPendingRuns
-			m.lastSwitchPendingRuns = nil
-			m.appendSwitchHookLines(runs)
-		}
 
 	case sessionFilesUpdatesMsg:
 		m.sessionFiles = msg.sessionFiles

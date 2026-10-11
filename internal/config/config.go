@@ -328,6 +328,10 @@ type TUIOptions struct {
 	Scrollbar   string      `json:"scrollbar,omitempty" jsonschema:"description=Chat scrollbar visibility,enum=default,enum=always,enum=never,default=default"`
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
+	// SymbolHints renders key hints with the symbol style instead of
+	// the spelled-out upstream form. The nil pointer and the unset
+	// field both mean symbols, the default.
+	SymbolHints *bool `json:"symbol_hints,omitempty" jsonschema:"description=Show key hints as keyboard symbols,default=true"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -335,6 +339,21 @@ type TUIOptions struct {
 // without unwrapping either.
 func (t *TUIOptions) IsTransparent() bool {
 	return t != nil && t.Transparent != nil && *t.Transparent
+}
+
+// IsSymbolHints reports whether key hints render with the symbol style.
+// The nil receiver and the unset pointer both mean symbols, so callers
+// can ask without unwrapping either.
+func (t *TUIOptions) IsSymbolHints() bool {
+	return t == nil || t.SymbolHints == nil || *t.SymbolHints
+}
+
+// IsSymbolHintsSafe reports the symbol hints setting through a Config
+// that may carry nil Options. The pure getter family stays nil-safe at
+// the TUIOptions level; dialogs read through this wrapper because
+// their test stubs build bare Config values.
+func (c *Config) IsSymbolHintsSafe() bool {
+	return c != nil && c.Options != nil && c.Options.TUI.IsSymbolHints()
 }
 
 // UnmarshalJSON tolerates the legacy string form of the "theme" field.

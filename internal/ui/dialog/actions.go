@@ -53,6 +53,7 @@ type (
 	ActionNewSession              struct{}
 	ActionToggleHelp              struct{}
 	ActionToggleCompactMode       struct{}
+	ActionToggleSymbolHints       struct{}
 	ActionToggleThinking          struct{}
 	ActionTogglePills             struct{}
 	ActionExternalEditor          struct{}

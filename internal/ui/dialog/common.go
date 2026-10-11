@@ -123,8 +123,13 @@ func applyInfoColumnVisibility(items []list.Item, rowWidth, maxPercent int) {
 // contentWidth (the dialog's inner width: total minus the View border). The
 // hints are packed greedily and truncated with an ellipsis so the line never
 // wraps or overflows the border, and never ends on a dangling separator.
-func renderDialogHelp(t *styles.Styles, h *help.Model, km help.KeyMap, contentWidth int) string {
+// symbolHints switches the hints to the symbol style through the central
+// translation; the canonical spellings render when it is off.
+func renderDialogHelp(t *styles.Styles, h *help.Model, km help.KeyMap, contentWidth int, symbolHints bool) string {
 	textWidth := max(0, contentWidth-t.Dialog.HelpView.GetHorizontalFrameSize())
+	if symbolHints {
+		km = common.NewSymbolKeyMap(km)
+	}
 	return t.Dialog.HelpView.Render(shortHelpLine(h, km.ShortHelp(), textWidth))
 }
 

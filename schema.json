@@ -1025,6 +1025,11 @@
           ],
           "description": "Exit banner style after quitting Crush",
           "default": "default"
+        },
+        "symbol_hints": {
+          "type": "boolean",
+          "description": "Show key hints as keyboard symbols",
+          "default": true
         }
       },
       "additionalProperties": false,

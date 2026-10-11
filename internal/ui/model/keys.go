@@ -92,27 +92,27 @@ func DefaultKeyMap() KeyMap {
 	km := KeyMap{
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
-			key.WithHelp("⌃c", "quit"),
+			key.WithHelp("ctrl+c", "quit"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("ctrl+g"),
-			key.WithHelp("⌃g", "more"),
+			key.WithHelp("ctrl+g", "more"),
 		),
 		Commands: key.NewBinding(
 			key.WithKeys("ctrl+p"),
-			key.WithHelp("⌃p", "commands"),
+			key.WithHelp("ctrl+p", "commands"),
 		),
 		Models: key.NewBinding(
 			key.WithKeys("ctrl+m", "ctrl+l"),
-			key.WithHelp("⌃l", "models"),
+			key.WithHelp("ctrl+l", "models"),
 		),
 		Suspend: key.NewBinding(
 			key.WithKeys("ctrl+z"),
-			key.WithHelp("⌃z", "suspend"),
+			key.WithHelp("ctrl+z", "suspend"),
 		),
 		Sessions: key.NewBinding(
 			key.WithKeys("ctrl+s"),
-			key.WithHelp("⌃s", "sessions"),
+			key.WithHelp("ctrl+s", "sessions"),
 		),
 		Tab: key.NewBinding(
 			key.WithKeys("tab"),
@@ -120,11 +120,11 @@ func DefaultKeyMap() KeyMap {
 		),
 		ToggleYolo: key.NewBinding(
 			key.WithKeys("ctrl+y"),
-			key.WithHelp("⌃y", "toggle yolo"),
+			key.WithHelp("ctrl+y", "toggle yolo"),
 		),
 		ShiftTab: key.NewBinding(
 			key.WithKeys("shift+tab"),
-			key.WithHelp("⇧ ⇆", "mode"),
+			key.WithHelp("shift+tab", "mode"),
 		),
 	}
 
@@ -134,26 +134,26 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Editor.OpenEditor = key.NewBinding(
 		key.WithKeys("ctrl+o"),
-		key.WithHelp("⌃o", "open editor"),
+		key.WithHelp("ctrl+o", "open editor"),
 	)
 	km.Editor.Newline = key.NewBinding(
 		key.WithKeys("shift+enter", "ctrl+j"),
 		// "ctrl+j" is a common keybinding for newline in many editors. If
 		// the terminal supports "shift+enter", we substitute the help tex
 		// to reflect that.
-		key.WithHelp("⌃j", "newline"),
+		key.WithHelp("ctrl+j", "newline"),
 	)
 	km.Editor.AddImage = key.NewBinding(
 		key.WithKeys("ctrl+f"),
-		key.WithHelp("⌃f", "add image"),
+		key.WithHelp("ctrl+f", "add image"),
 	)
 	km.Editor.PasteImage = key.NewBinding(
 		key.WithKeys("ctrl+v"),
-		key.WithHelp("⌃v", "paste image from clipboard"),
+		key.WithHelp("ctrl+v", "paste image from clipboard"),
 	)
 	km.Editor.PasteText = key.NewBinding(
 		key.WithKeys("ctrl+shift+v"),
-		key.WithHelp("⌃⇧v", "paste text"),
+		key.WithHelp("ctrl+shift+v", "paste text"),
 	)
 	km.Editor.MentionFile = key.NewBinding(
 		key.WithKeys("@"),
@@ -165,7 +165,7 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Editor.AttachmentDeleteMode = key.NewBinding(
 		key.WithKeys("ctrl+r"),
-		key.WithHelp("⌃r+{i}", "delete attachment at index i"),
+		key.WithHelp("ctrl+r+{i}", "delete attachment at index i"),
 	)
 	km.Editor.Escape = key.NewBinding(
 		key.WithKeys("esc", "alt+esc"),
@@ -173,7 +173,7 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Editor.DeleteAllAttachments = key.NewBinding(
 		key.WithKeys("r"),
-		key.WithHelp("⌃r+r", "delete all attachments"),
+		key.WithHelp("ctrl+r+r", "delete all attachments"),
 	)
 	km.Editor.HistoryPrev = key.NewBinding(
 		key.WithKeys("up"),
@@ -183,24 +183,24 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Editor.CopySelection = key.NewBinding(
 		key.WithKeys("ctrl+shift+c"),
-		key.WithHelp("⌃⇧c", "copy selection"),
+		key.WithHelp("ctrl+shift+c", "copy selection"),
 	)
 	km.Editor.CutSelection = key.NewBinding(
 		key.WithKeys("ctrl+shift+x"),
-		key.WithHelp("⌃⇧x", "cut selection"),
+		key.WithHelp("ctrl+shift+x", "cut selection"),
 	)
 	km.Editor.SelectAll = key.NewBinding(
 		key.WithKeys("ctrl+shift+a"),
-		key.WithHelp("⌃⇧a", "select all"),
+		key.WithHelp("ctrl+shift+a", "select all"),
 	)
 
 	km.Chat.NewSession = key.NewBinding(
 		key.WithKeys("ctrl+n"),
-		key.WithHelp("⌃n", "new session"),
+		key.WithHelp("ctrl+n", "new session"),
 	)
 	km.Chat.AddAttachment = key.NewBinding(
 		key.WithKeys("ctrl+f"),
-		key.WithHelp("⌃f", "add attachment"),
+		key.WithHelp("ctrl+f", "add attachment"),
 	)
 	km.Chat.Cancel = key.NewBinding(
 		key.WithKeys("esc", "alt+esc"),
@@ -212,15 +212,15 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Chat.Details = key.NewBinding(
 		key.WithKeys("ctrl+d"),
-		key.WithHelp("⌃d", "toggle details"),
+		key.WithHelp("ctrl+d", "toggle details"),
 	)
 	km.Chat.TogglePills = key.NewBinding(
 		key.WithKeys("ctrl+t", "ctrl+space"),
-		key.WithHelp("⌃t", "toggle tasks"),
+		key.WithHelp("ctrl+t", "toggle tasks"),
 	)
 	km.Chat.ToggleSidebar = key.NewBinding(
 		key.WithKeys("ctrl+b"),
-		key.WithHelp("⌃b", "sidebar"),
+		key.WithHelp("ctrl+b", "sidebar"),
 	)
 	km.Chat.PillLeft = key.NewBinding(
 		key.WithKeys("left"),
@@ -245,15 +245,15 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Chat.UpOneItem = key.NewBinding(
 		key.WithKeys("shift+up", "K"),
-		key.WithHelp("⇧ ↑", "up one item"),
+		key.WithHelp("shift+↑", "up one item"),
 	)
 	km.Chat.DownOneItem = key.NewBinding(
 		key.WithKeys("shift+down", "J"),
-		key.WithHelp("⇧ ↓", "down one item"),
+		key.WithHelp("shift+↓", "down one item"),
 	)
 	km.Chat.UpDownOneItem = key.NewBinding(
 		key.WithKeys("shift+up", "shift+down"),
-		key.WithHelp("⇧ ↑↓", "scroll one item"),
+		key.WithHelp("shift+↑↓", "scroll one item"),
 	)
 	km.Chat.HalfPageDown = key.NewBinding(
 		key.WithKeys("d"),
@@ -296,11 +296,11 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Chat.ScrollLeft = key.NewBinding(
 		key.WithKeys("shift+left", "H"),
-		key.WithHelp("⇧ ←/H", "scroll left"),
+		key.WithHelp("shift+←/H", "scroll left"),
 	)
 	km.Chat.ScrollRight = key.NewBinding(
 		key.WithKeys("shift+right", "L"),
-		key.WithHelp("⇧ →/L", "scroll right"),
+		key.WithHelp("shift+→/L", "scroll right"),
 	)
 	km.Chat.FocusSidebar = key.NewBinding(
 		key.WithKeys("l", "right"),

@@ -47,6 +47,9 @@ type countingWorkspace struct {
 	// showHypercreditsCalls records SetShowHypercredits persistence calls.
 	showHypercreditsCalls []bool
 
+	// symbolHintsCalls records SetSymbolHints persistence calls.
+	symbolHintsCalls []bool
+
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -120,6 +123,11 @@ func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled boo
 
 func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
 	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
+	return nil
+}
+
+func (w *countingWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	w.symbolHintsCalls = append(w.symbolHintsCalls, enabled)
 	return nil
 }
 

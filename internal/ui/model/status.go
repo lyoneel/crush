@@ -46,6 +46,16 @@ func NewStatus(com *common.Common, km help.KeyMap) *Status {
 	return s
 }
 
+// SetSymbolHints switches the help keymap between the symbol
+// translation and the canonical spellings.
+func (s *Status) SetSymbolHints(enabled bool, km help.KeyMap) {
+	if enabled {
+		s.helpKm = common.NewSymbolKeyMap(km)
+		return
+	}
+	s.helpKm = km
+}
+
 // Show puts msg on screen and returns the command that retires it once its
 // TTL, or [DefaultStatusTTL] if unset, has passed.
 func (s *Status) Show(msg util.InfoMsg) tea.Cmd {

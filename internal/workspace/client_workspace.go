@@ -581,6 +581,10 @@ func (w *ClientWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) 
 	return w.SetConfigField(scope, "options.tui.show_hypercredits", enabled)
 }
 
+func (w *ClientWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	return w.SetConfigField(scope, "options.tui.symbol_hints", enabled)
+}
+
 func (w *ClientWorkspace) SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error {
 	err := w.client.SetProviderAPIKey(context.Background(), w.workspaceID(), scope, providerID, apiKey)
 	if err == nil {

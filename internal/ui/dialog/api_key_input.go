@@ -165,7 +165,7 @@ func (m *APIKeyInput) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	textStyle := t.Dialog.SecondaryText
 	dialogStyle := t.Dialog.View.Width(m.width)
 	inputStyle := t.Dialog.InputPrompt
-	helpView := renderDialogHelp(t, &m.help, m, m.width-dialogStyle.GetHorizontalFrameSize())
+	helpView := renderDialogHelp(t, &m.help, m, m.width-dialogStyle.GetHorizontalFrameSize(), m.com.Config().IsSymbolHintsSafe())
 
 	m.input.Prompt = m.spinner.View()
 

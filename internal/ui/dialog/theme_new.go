@@ -116,7 +116,7 @@ func (d *ThemeNew) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	} else {
 		rc.AddPart(errStyle.Height(reservedErrHeight).Render(""))
 	}
-	rc.Help = renderDialogHelp(t, &d.help, d, innerWidth)
+	rc.Help = renderDialogHelp(t, &d.help, d, innerWidth, d.com.Config().IsSymbolHintsSafe())
 
 	view := rc.Render()
 	cur := d.Cursor()

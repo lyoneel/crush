@@ -329,7 +329,7 @@ func (s *Session) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	bodyView := t.Dialog.List.Height(s.list.Height()).Render(s.list.Render())
 	bodyView = joinScrollbar(t, bodyView, listHeight, listTotalHeight, listHeight, s.list.Offset())
 	rc.AddPart(bodyView)
-	rc.Help = renderDialogHelp(t, &s.help, s, innerWidth)
+	rc.Help = renderDialogHelp(t, &s.help, s, innerWidth, s.com.Config().IsSymbolHintsSafe())
 
 	view := rc.Render()
 	s.updateSessionListArea(area, view, bodyView, rc.Help, rc.ViewStyle, t.Dialog.List, innerWidth, listHeight)

@@ -73,6 +73,22 @@ func TestCommandsSidebarMinimalismItemWired(t *testing.T) {
 	}
 	require.True(t, foundHypercredits, "the Toggle Hypercredits item must exist")
 	require.True(t, hypercreditsAfterMinimalism, "the hypercredits item must sit directly below the minimalism item")
+
+	var foundSymbolHints, symbolHintsAfterHypercredits bool
+	for _, item := range items {
+		cmdItem, ok := item.(*CommandItem)
+		if !ok || cmdItem == nil {
+			continue
+		}
+		if cmdItem.id == "toggle_symbol_hints" {
+			foundSymbolHints = true
+			symbolHintsAfterHypercredits = foundHypercredits
+			_, isAction := cmdItem.Action().(ActionToggleSymbolHints)
+			require.True(t, isAction, "the item must carry the toggle action")
+		}
+	}
+	require.True(t, foundSymbolHints, "the Toggle Symbol Hints item must exist")
+	require.True(t, symbolHintsAfterHypercredits, "the symbol hints item must sit directly below the hypercredits item")
 }
 
 // TestCommandsTogglesShowWithoutSession pins the startup-screen
@@ -90,6 +106,7 @@ func TestCommandsTogglesShowWithoutSession(t *testing.T) {
 
 	items := c.list.FilteredItems()
 	var foundToggle, foundMinimalism, foundHypercredits bool
+	var foundSymbolHints bool
 	for _, item := range items {
 		cmdItem, ok := item.(*CommandItem)
 		if !ok || cmdItem == nil {
@@ -107,6 +124,17 @@ func TestCommandsTogglesShowWithoutSession(t *testing.T) {
 	require.False(t, foundToggle, "Toggle Sidebar must stay behind the session guard")
 	require.True(t, foundMinimalism, "the minimalism toggle must show without a session")
 	require.True(t, foundHypercredits, "the hypercredits toggle must show without a session")
+
+	for _, item := range items {
+		cmdItem, ok := item.(*CommandItem)
+		if !ok || cmdItem == nil {
+			continue
+		}
+		if cmdItem.id == "toggle_symbol_hints" {
+			foundSymbolHints = true
+		}
+	}
+	require.True(t, foundSymbolHints, "the symbol hints toggle must show without a session")
 }
 
 // commonDefaultStyles builds the styles the commands dialog renders with.

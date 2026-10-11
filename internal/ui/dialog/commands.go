@@ -111,7 +111,7 @@ func NewCommands(com *common.Common, sessionID string, hasSession, hasTodos, has
 	)
 	c.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("↕", "choose"),
+		key.WithHelp("up/down", "choose"),
 	)
 	c.keyMap.Next = key.NewBinding(
 		key.WithKeys("down"),

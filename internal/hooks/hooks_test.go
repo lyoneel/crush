@@ -860,33 +860,32 @@ func TestParseStdoutClaudeCodeFormat(t *testing.T) {
 	})
 }
 
-func TestAllAsync(t *testing.T) {
+func TestPerHookAsyncRunsFireAndForget(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty slice is not async", func(t *testing.T) {
+	t.Run("an async hook does not block the aggregate", func(t *testing.T) {
 		t.Parallel()
-		require.False(t, AllAsync(nil))
-		require.False(t, AllAsync([]config.HookConfig{}))
+		r := NewRunner([]config.HookConfig{
+			{Command: `echo '{"decision":"deny","reason":"nope"}'`, Async: true},
+		}, t.TempDir(), t.TempDir())
+		agg, err := r.RunLifecycle(t.Context(), EventPrePrompt, "s1", SessionEventData{Prompt: "p"})
+		require.NoError(t, err)
+		require.Equal(t, DecisionNone, agg.Decision, "an async hook's deny is ignored")
+		require.Len(t, agg.Hooks, 1)
+		require.True(t, agg.Hooks[0].Async, "the hook reports its own async flag")
 	})
 
-	t.Run("one async hook is async", func(t *testing.T) {
+	t.Run("a sync hook still blocks beside an async one", func(t *testing.T) {
 		t.Parallel()
-		require.True(t, AllAsync([]config.HookConfig{{Async: true}}))
-	})
-
-	t.Run("mixed hooks are not async", func(t *testing.T) {
-		t.Parallel()
-		require.False(t, AllAsync([]config.HookConfig{
-			{Async: true},
-			{Name: "sync"},
-		}))
-	})
-
-	t.Run("all async hooks are async", func(t *testing.T) {
-		t.Parallel()
-		require.True(t, AllAsync([]config.HookConfig{
-			{Async: true},
-			{Async: true},
-		}))
+		r := NewRunner([]config.HookConfig{
+			{Command: `echo '{"decision":"deny","reason":"gate"}'`},
+			{Command: `echo '{"decision":"deny","reason":"nope"}'`, Async: true},
+		}, t.TempDir(), t.TempDir())
+		agg, err := r.RunLifecycle(t.Context(), EventPrePrompt, "s1", SessionEventData{Prompt: "p"})
+		require.NoError(t, err)
+		require.Equal(t, DecisionDeny, agg.Decision, "the sync hook's deny aggregates")
+		require.Len(t, agg.Hooks, 2)
+		require.False(t, agg.Hooks[0].Async, "the sync hook reports sync")
+		require.True(t, agg.Hooks[1].Async, "the async hook reports its own async flag")
 	})
 }

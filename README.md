@@ -1,18 +1,18 @@
 # Crush
 
-> [!NOTE]
-> **Fork disclaimer.** This is a personal fork of
-> [Crush](https://github.com/charmbracelet/crush). It does not try to
-> replace or deviate from the original project. I use it for my own
-> needs, and I test changes to the program here. Changes that become
-> stable enough go to the upstream project. When upstream publishes a
-> new release, this fork gets the same update. I use this fork as my
-> daily driver. It is usually stable, and you can test it freely, but
-> I strongly recommend that you do not use it in production. If you
-> build it, use a custom binary name, for example `crushly`.
+A personal fork of [Crush](https://github.com/charmbracelet/crush).
+It does not replace or deviate from the original project; I use it
+for my own needs, and I test changes to the program here. The fork
+adds features on top of upstream Crush; the upstream README below
+stays untouched.
 
-The upstream README below stays untouched. This fork adds features,
-each carrying a state tag:
+> [!WARNING]
+> Do not use this fork in production. If you build it, use a custom
+> binary name, for example `crushly`.
+
+## Fork features
+
+Each feature carries a state tag:
 
 - **[stable]** — in daily use, tested through real sessions; breaking
   changes are unlikely
@@ -20,7 +20,9 @@ each carrying a state tag:
   change
 - **[work-in-progress]** — usable but rough; expect changes
 
-## Fork features
+Changes that become stable enough go to the
+[upstream project](https://github.com/charmbracelet/crush), and
+each upstream release gets merged here.
 
 | Feature | State | Description |
 |---------|-------|-------------|
@@ -42,10 +44,9 @@ fork also shows it for models served through a gateway under
 `Hyper/` model ids or `/hyper/` path segments (matched in any letter
 case).
 
-I reach Hyper models through a gateway because it gives me easy
-access to different services from all my devices, and Hyper is one
-of them. Without this change I lose the credits feature on every
-model the gateway serves.
+Users who reach Hyper models through a home gateway get the
+credits feature on every model the gateway serves; without this
+change it shows only on the direct provider.
 
 ### Small model display [stable]
 
@@ -64,13 +65,14 @@ most cases and makes the two resource sections visually consistent.
 
 ### Select-both model binding [stable]
 
-Model selection shows the large and the small task model in the same
-dialog, and before the small model display existed I often had no
-idea which small model was set. I usually run both task sizes on the
-same model (cheap or local ones), and setting them by hand meant
+Model selection shows the large and the small task model in the
+same dialog, and before the small model display existed the small
+model was easy to leave stale without noticing. If you run both
+task sizes on the same model, or you want to
+make sure that the small model is set, `shift+enter` applies the
+chosen model to both task sizes in one action instead of
 selecting, confirming, and re-selecting through the same dialog
-twice. `shift+enter` applies the chosen model to both task sizes in
-one action.
+twice.
 
 ### Minimalist sidebar [stable]
 
@@ -81,10 +83,8 @@ the `Toggle Minimalist Sidebar` command:
 - LSPs that are disabled, or never activated in the session, are not
   displayed.
 
-This reduces the visual charge in the sidebar. The sidebar is the
-daily-driver screen; disabled resources only add visual charge
-there, and the ones that matter come back the moment they start
-working.
+This reduces the visual charge in the sidebar, and the resources
+that matter come back the moment they start working.
 
 NOTE: the main initial screen is untouched by this feature; only
 the sidebar is affected.

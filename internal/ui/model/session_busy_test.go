@@ -42,6 +42,8 @@ type countingWorkspace struct {
 	mcpStates      map[string]mcp.ClientInfo
 	mcpPendingAuth []mcp.PendingAuthServer
 
+	// symbolHintsCalls records SetSymbolHints persistence calls.
+	symbolHintsCalls []bool
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -109,6 +111,11 @@ func (w *countingWorkspace) LSPGetStates() map[string]workspace.LSPClientInfo {
 func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCounts {
 	w.lspDiagCalls++
 	return w.lspDiags[name]
+}
+
+func (w *countingWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	w.symbolHintsCalls = append(w.symbolHintsCalls, enabled)
+	return nil
 }
 
 func (w *countingWorkspace) MCPGetStates() map[string]mcp.ClientInfo {

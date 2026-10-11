@@ -206,7 +206,7 @@ func (m *AuthMethod) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	}
 	rc.AddPart(cards)
 
-	rc.Help = "\n" + renderDialogHelp(t, &m.help, m, innerWidth)
+	rc.Help = "\n" + renderDialogHelp(t, &m.help, m, innerWidth, m.com.Config().IsSymbolHintsSafe())
 
 	view := rc.Render()
 	if m.isOnboarding {

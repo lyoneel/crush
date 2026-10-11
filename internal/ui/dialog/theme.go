@@ -520,7 +520,7 @@ func (th *Theme) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	listView := t.Dialog.List.Height(th.list.Height()).Render(th.list.Render())
 	listView = joinScrollbar(t, listView, listHeight, listTotalHeight, listHeight, th.list.Offset())
 	rc.AddPart(listView)
-	rc.Help = renderDialogHelp(t, &th.help, th, innerWidth)
+	rc.Help = renderDialogHelp(t, &th.help, th, innerWidth, th.com.Config().IsSymbolHintsSafe())
 
 	view := rc.Render()
 

@@ -237,7 +237,7 @@ func (m *MCPAuth) dialogContent() string {
 	elements := []string{
 		m.headerContent(),
 		m.innerContent(),
-		renderDialogHelp(t, &m.help, m, innerWidth),
+		renderDialogHelp(t, &m.help, m, innerWidth, m.com.Config().IsSymbolHintsSafe()),
 	}
 	return strings.Join(elements, "\n")
 }

@@ -21,7 +21,7 @@ func TestFireLifecycleHookWritesPayload(t *testing.T) {
 	logFile := filepath.Join(dir, "hooks.log")
 
 	runner := hooks.NewRunner(
-		[]config.HookConfig{{Command: "cat >> " + logFile}},
+		[]config.HookConfig{{Command: "cat >> '" + logFile + "'"}},
 		dir, dir,
 	)
 	result, err := runner.RunLifecycle(t.Context(), hooks.EventPrePrompt, "sess-1",
@@ -45,7 +45,7 @@ func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventPrePrompt: {{Command: "cat >> " + logFile}},
+		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'"}},
 	}
 
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, "sess-1",
@@ -65,7 +65,7 @@ func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventPrePrompt: {{Command: "cat >> " + logFile, Async: true}},
+		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'", Async: true}},
 	}
 
 	fireLifecycleHookDefault(env.messages, cfg, hooks.EventPrePrompt, "sess-1",
@@ -87,7 +87,7 @@ func TestFireLifecycleHookDefaultAsyncRecordsFinishedRun(t *testing.T) {
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventPrePrompt: {{Command: "cat >> " + logFile, Async: true}},
+		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'", Async: true}},
 	}
 	sess, err := env.sessions.Create(t.Context(), "hook session")
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func newPreSessionCoordinator(t *testing.T) (*coordinator, string) {
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventPreSession: {{Command: "cat >> " + logFile}},
+		hooks.EventPreSession: {{Command: "cat >> '" + logFile + "'"}},
 	}
 	return &coordinator{cfg: cfg, sessions: env.sessions, messages: env.messages}, logFile
 }
@@ -244,7 +244,7 @@ func TestRunPostPromptRecorded(t *testing.T) {
 	require.NoError(t, err)
 	logFile := filepath.Join(env.workingDir, "hooks.log")
 	cfg.Config().Hooks = map[string][]config.HookConfig{
-		hooks.EventPostPrompt: {{Command: "cat >> " + logFile}},
+		hooks.EventPostPrompt: {{Command: "cat >> '" + logFile + "'"}},
 	}
 	sa.cfg = cfg
 

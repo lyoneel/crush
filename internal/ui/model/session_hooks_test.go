@@ -47,7 +47,7 @@ func TestFireSessionSwitchHookRecordsBothSessions(t *testing.T) {
 	dir := t.TempDir()
 	tTempDirForHooks = dir
 	m := newTestUI()
-	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "cat >> "+filepath.Join(dir, "hooks.log"))}
+	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "cat >> '"+filepath.Join(dir, "hooks.log")+"'")}
 
 	old := &session.Session{ID: "sess-a", Title: "Old", PromptTokens: 7, Cost: 0.25}
 	next := &session.Session{ID: "sess-b", Title: "New Session"}
@@ -73,7 +73,7 @@ func TestFireSessionSwitchHookFirstSession(t *testing.T) {
 	dir := t.TempDir()
 	tTempDirForHooks = dir
 	m := newTestUI()
-	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "cat >> "+filepath.Join(dir, "hooks.log"))}
+	m.com.Workspace = hookWorkspace{cfg: hookTestConfig(t, "cat >> '"+filepath.Join(dir, "hooks.log")+"'")}
 
 	cmd := m.fireSessionSwitchHook(nil, &session.Session{ID: "sess-1"}, loadSessionMsg{})
 	require.NotNil(t, cmd)
@@ -122,7 +122,7 @@ func TestFireSessionSwitchHookAsyncHookRecordsFinishedRun(t *testing.T) {
 	m := newTestUI()
 	cfg := &config.Config{}
 	cfg.Hooks = map[string][]config.HookConfig{
-		hooks.EventPreSessionSwitch: {{Command: "cat >> " + filepath.Join(dir, "hooks.log"), Async: true}},
+		hooks.EventPreSessionSwitch: {{Command: "cat >> '" + filepath.Join(dir, "hooks.log") + "'", Async: true}},
 	}
 	m.com.Workspace = hookWorkspace{cfg: cfg}
 

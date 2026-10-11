@@ -136,7 +136,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
-		key.WithHelp("up/down", "move"),
+		key.WithHelp("↑/↓", "move"),
 	)
 	m.keyMap.Next = key.NewBinding(
 		key.WithKeys("down", "ctrl+n"),

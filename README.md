@@ -44,8 +44,6 @@ The upstream README below stays untouched. This fork adds:
 12. Mode badges: the status bar always carries a mode badge, the
     standard input in green (`NORM`), plus `PLAN` and `YOLO` without
     the "MODE" suffix
-13. Fork build version stamp: `crush --version` reads like
-    `v0.98.1-ly-15`, the upstream release plus a fork build counter
 
 The rest of this README is the upstream README, unmodified.
 

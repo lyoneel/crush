@@ -138,16 +138,6 @@ func (m *UI) preSessionSwitchHooksConfigured() bool {
 	return cfg != nil && len(cfg.Hooks[hooks.EventPreSessionSwitch]) > 0
 }
 
-// preSessionSwitchHooksAsync reports whether every configured
-// PreSessionSwitch hook is asynchronous.
-func (m *UI) preSessionSwitchHooksAsync() bool {
-	cfg := m.com.Config()
-	if cfg == nil {
-		return false
-	}
-	return hooks.AllAsync(cfg.Hooks[hooks.EventPreSessionSwitch])
-}
-
 // applyLoadedSession applies a loaded session to the UI: the session
 // reference, chat list, LSPs, prompt history, and pending bang command.
 // The synchronous switch path defers this until its hooks finish.
@@ -234,20 +224,6 @@ type switchHookDoneMsg struct {
 	load loadSessionMsg
 }
 
-// switchHookPendingMsg reports that asynchronous PreSessionSwitch hooks
-// started; the pending lines append to the already-displayed session.
-type switchHookPendingMsg struct {
-	gen  int64
-	runs []message.HookRun
-}
-
-// switchHookRunsMsg reports that asynchronous PreSessionSwitch hooks
-// finished; the pending lines update in place with the outcomes.
-type switchHookRunsMsg struct {
-	gen  int64
-	runs []message.HookRun
-}
-
 // fireSessionSwitchHook returns the commands that run the
 // PreSessionSwitch lifecycle hook when the displayed session changes:
 // one call carries the abandoned session and the newly active one, and
@@ -299,42 +275,15 @@ func (m *UI) fireSessionSwitchHook(previous, next *session.Session, load loadSes
 	}
 	gen := switchHookGen.Add(1)
 
-	if hooks.AllAsync(eventHooks) {
-		pending := func() tea.Msg {
-			runs := make([]message.HookRun, 0, len(eventHooks))
-			seen := make(map[string]bool, len(eventHooks))
-			for _, h := range eventHooks {
-				if seen[h.Command] {
-					continue
-				}
-				seen[h.Command] = true
-				runs = append(runs, message.HookRun{
-					Event: hooks.EventPreSessionSwitch, Name: h.DisplayName(),
-					Decision: "none", Status: hooks.StatusRunning, Async: true,
-				})
-			}
-			return switchHookPendingMsg{gen: gen, runs: runs}
-		}
-		done := func() tea.Msg {
-			return switchHookRunsMsg{gen: gen, runs: asyncHookRuns(m.runSwitchHook(runner, sessionID, previousPayload, nextPayload))}
-		}
-		return tea.Batch(pending, done)
-	}
-
+	// Per-hook async: the runner fires async hooks fire-and-forget and
+	// runs the sync hooks inline. The switch itself stays deferred on
+	// the synchronous completion: the done message applies the load and
+	// records every run, each carrying its own async flag for the
+	// transcript glyph.
 	return func() tea.Msg {
 		runs := m.runSwitchHook(runner, sessionID, previousPayload, nextPayload)
 		return switchHookDoneMsg{gen: gen, runs: runs, load: load}
 	}
-}
-
-// asyncHookRuns marks every run as fired asynchronously so the
-// transcript line carries the status glyph; the glyph only appears on
-// fire-and-forget hooks.
-func asyncHookRuns(runs []message.HookRun) []message.HookRun {
-	for i := range runs {
-		runs[i].Async = true
-	}
-	return runs
 }
 
 // runSwitchHook runs the PreSessionSwitch hooks and converts the result
@@ -348,7 +297,7 @@ func (m *UI) runSwitchHook(runner *hooks.Runner, sessionID string, previous, nex
 	}
 	runs := make([]message.HookRun, len(result.Hooks))
 	for i, h := range result.Hooks {
-		runs[i] = message.HookRun{Event: hooks.EventPreSessionSwitch, Name: h.Name, Decision: h.Decision, Status: h.Status}
+		runs[i] = message.HookRun{Event: hooks.EventPreSessionSwitch, Name: h.Name, Decision: h.Decision, Status: h.Status, Async: h.Async}
 	}
 	return runs
 }
@@ -368,23 +317,6 @@ func (m *UI) appendSwitchHookLines(runs []message.HookRun) {
 	}
 	m.chat.AppendMessages(items...)
 	m.chat.ScrollToBottom()
-}
-
-// updateSwitchHookLines refreshes the transient switch hook lines in
-// place when an asynchronous run completes. Stale completions from an
-// abandoned switch are ignored.
-func (m *UI) updateSwitchHookLines(msg switchHookRunsMsg) {
-	if msg.gen != switchHookGen.Load() {
-		return
-	}
-	item, ok := m.chat.MessageItem(chat.HookItemID(switchHookLocalID, hooks.EventPreSessionSwitch)).(*chat.HookItem)
-	if !ok {
-		return
-	}
-	item.SetContent(message.HookContent{
-		Event: hooks.EventPreSessionSwitch,
-		Hooks: msg.runs,
-	})
 }
 
 // reportCurrentSession returns a fire-and-forget tea.Cmd that

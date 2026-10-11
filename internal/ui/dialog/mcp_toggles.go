@@ -215,7 +215,7 @@ func (m *MCPToggles) dialogContent() string {
 	rc.Title = "Toggle MCPs"
 	rc.TitleInfo = m.scopeRadioView(t)
 	rc.AddPart(m.innerContent())
-	rc.Help = renderDialogHelp(t, &m.help, m, innerWidth)
+	rc.Help = renderDialogHelp(t, &m.help, m, innerWidth, m.com.Config().IsSymbolHintsSafe())
 	return rc.Render()
 }
 

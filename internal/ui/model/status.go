@@ -43,6 +43,16 @@ func NewStatus(com *common.Common, km help.KeyMap) *Status {
 	return s
 }
 
+// SetSymbolHints switches the help keymap between the symbol
+// translation and the canonical spellings.
+func (s *Status) SetSymbolHints(enabled bool, km help.KeyMap) {
+	if enabled {
+		s.helpKm = common.NewSymbolKeyMap(km)
+		return
+	}
+	s.helpKm = km
+}
+
 // SetInfoMsg sets the status info message.
 func (s *Status) SetInfoMsg(msg util.InfoMsg) {
 	s.msg = msg

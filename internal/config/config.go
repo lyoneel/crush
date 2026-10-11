@@ -357,6 +357,10 @@ type TUIOptions struct {
 	// info stack and the compact header. The nil pointer and the unset
 	// field both mean shown, the default.
 	ShowHypercredits *bool `json:"show_hypercredits,omitempty" jsonschema:"description=Show the Hyper credits balance in the TUI,default=true"`
+	// SymbolHints renders key hints with the symbol style instead of
+	// the spelled-out upstream form. The nil pointer and the unset
+	// field both mean symbols, the default.
+	SymbolHints *bool `json:"symbol_hints,omitempty" jsonschema:"description=Show key hints as keyboard symbols,default=true"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -378,6 +382,21 @@ func (t *TUIOptions) IsSidebarMinimalism() bool {
 // callers can ask without unwrapping either.
 func (t *TUIOptions) IsShowHypercredits() bool {
 	return t == nil || t.ShowHypercredits == nil || *t.ShowHypercredits
+}
+
+// IsSymbolHints reports whether key hints render with the symbol style.
+// The nil receiver and the unset pointer both mean symbols, so callers
+// can ask without unwrapping either.
+func (t *TUIOptions) IsSymbolHints() bool {
+	return t == nil || t.SymbolHints == nil || *t.SymbolHints
+}
+
+// IsSymbolHintsSafe reports the symbol hints setting through a Config
+// that may carry nil Options. The pure getter family stays nil-safe at
+// the TUIOptions level; dialogs read through this wrapper because
+// their test stubs build bare Config values.
+func (c *Config) IsSymbolHintsSafe() bool {
+	return c != nil && c.Options != nil && c.Options.TUI.IsSymbolHints()
 }
 
 // UnmarshalJSON tolerates the legacy string form of the "theme" field.

@@ -424,6 +424,10 @@ type UI struct {
 	// balance (the Toggle Hypercredits command)
 	showHyperCredits bool
 
+	// symbolHints tracks whether key hints render with the symbol style
+	// (the Toggle Symbol Hints command)
+	symbolHints bool
+
 	// isCompact tracks whether we're currently in compact layout mode (either
 	// by user toggle or auto-switch based on window size)
 	isCompact bool
@@ -517,7 +521,7 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	)
 	ta.KeyMap.SelectAll = key.NewBinding(
 		key.WithKeys("ctrl+shift+a"),
-		key.WithHelp("⌃⇧a", "select all"),
+		key.WithHelp("ctrl+shift+a", "select all"),
 	)
 	// Copying is handled by crush's keymap (Editor.CopySelection) so it can
 	// use crush's clipboard backend and user feedback; disable the
@@ -611,6 +615,11 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// display, so the kill-switch follows the toggle.
 	ui.showHyperCredits = com.Config().Options.TUI.IsShowHypercredits()
 	hyper.SetDisplayEnabled(ui.showHyperCredits)
+	// Initialize the symbol hints style from config (nil-safe; absent
+	// key means symbols). The status bar holds the translating keymap
+	// wrapper when the style is on.
+	ui.symbolHints = com.Config().Options.TUI.IsSymbolHints()
+	status.SetSymbolHints(ui.symbolHints, ui)
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -1174,8 +1183,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyboardEnhancementsMsg:
 		m.keyenh = msg
 		if msg.SupportsKeyDisambiguation() {
-			m.keyMap.Models.SetHelp("⌃m", "models")
-			m.keyMap.Editor.Newline.SetHelp("⇧ ⏎", "newline")
+			m.keyMap.Models.SetHelp("ctl+m", "models")
+			m.keyMap.Editor.Newline.SetHelp("⇧+⏎", "newline")
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
@@ -2285,6 +2294,19 @@ func (m *UI) handleDialogAction(action dialog.Action) tea.Cmd {
 				cmds = append(cmds, m.fetchHyperCredits())
 			}
 			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Hypercredits "+status)))
+		}
+		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleSymbolHints:
+		m.symbolHints = !m.symbolHints
+		if err := m.com.Workspace.SetSymbolHints(config.ScopeGlobal, m.symbolHints); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "spelled out"
+			if m.symbolHints {
+				status = "symbolized"
+			}
+			m.status.SetSymbolHints(m.symbolHints, m)
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Symbol hints "+status)))
 		}
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionTogglePills:
@@ -3914,23 +3936,32 @@ func (m *UI) ShortHelp() []key.Binding {
 	var binds []key.Binding
 	k := &m.keyMap
 
-	// When an inline editor is active, show its help.
+	// When an inline editor is active, show its help. The symbol style
+	// applies through the translation; when symbols are off the
+	// bindings render canonically.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
+			if m.symbolHints {
+				return common.SymbolBindings(m.activeInline.ShortHelp())
+			}
 			return m.activeInline.ShortHelp()
 		}
-		return []key.Binding{
+		binds = []key.Binding{
 			m.inlineFocusHelp(),
 			k.Chat.UpDown,
 			k.Chat.PageUp,
 			k.Chat.PageDown,
 		}
+		if m.symbolHints {
+			return common.SymbolBindings(binds)
+		}
+		return binds
 	}
 
 	tab := k.Tab
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ⌃p", "commands")
+		commands.SetHelp("/ or ctl+p", "commands")
 	}
 
 	switch m.state {
@@ -4019,7 +4050,11 @@ func (m *UI) FullHelp() [][]key.Binding {
 	// When an inline editor is active, show its help.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
-			return [][]key.Binding{m.activeInline.ShortHelp()}
+			binds := [][]key.Binding{m.activeInline.ShortHelp()}
+			if m.symbolHints {
+				return [][]key.Binding{common.SymbolBindings(binds[0])}
+			}
+			return binds
 		}
 		return [][]key.Binding{
 			{m.inlineFocusHelp()},
@@ -4041,12 +4076,12 @@ func (m *UI) FullHelp() [][]key.Binding {
 	var binds [][]key.Binding
 	k := &m.keyMap
 	help := k.Help
-	help.SetHelp("⌃g", "less")
+	help.SetHelp("ctl+g", "less")
 	hasAttachments := len(m.attachments.List()) > 0
 	hasSession := m.hasSession()
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ⌃p", "commands")
+		commands.SetHelp("/ or ctl+p", "commands")
 	}
 
 	switch m.state {

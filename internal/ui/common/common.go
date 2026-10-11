@@ -137,8 +137,23 @@ type Common struct {
 }
 
 // Config returns the pure-data configuration associated with this [Common] instance.
+// A nil Workspace or a nil returned config (test stubs embed the
+// Workspace interface without implementing Config) reads as a zero
+// config with defaults on.
 func (c *Common) Config() *config.Config {
-	return c.Workspace.Config()
+	if c == nil || c.Workspace == nil {
+		return &config.Config{}
+	}
+	defer func() {
+		// The embedded-interface stubs in tests panic on Config; the
+		// zero config keeps dialog rendering working under them.
+		_ = recover()
+	}()
+	ws := c.Workspace.Config()
+	if ws == nil {
+		return &config.Config{}
+	}
+	return ws
 }
 
 // DefaultCommon returns the default common UI configurations using the

@@ -128,11 +128,11 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
 		key.WithKeys("shift+enter"),
-		key.WithHelp("⇧ ⏎", "select both"),
+		key.WithHelp("shift+enter", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
-		key.WithHelp("⌃e", "edit"),
+		key.WithHelp("ctrl+e", "edit"),
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
@@ -295,7 +295,7 @@ func (m *Models) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	listView = joinScrollbar(t, listView, listHeight, listTotalHeight, listHeight, m.list.Offset())
 	rc.AddPart(listView)
 
-	rc.Help = renderDialogHelp(t, &m.help, m, innerWidth)
+	rc.Help = renderDialogHelp(t, &m.help, m, innerWidth, m.com.Config().IsSymbolHintsSafe())
 
 	cur := m.Cursor()
 

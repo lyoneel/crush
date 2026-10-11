@@ -930,6 +930,11 @@
           "type": "boolean",
           "description": "Show the Hyper credits balance in the TUI",
           "default": true
+        },
+        "symbol_hints": {
+          "type": "boolean",
+          "description": "Show key hints as keyboard symbols",
+          "default": true
         }
       },
       "additionalProperties": false,

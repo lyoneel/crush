@@ -387,6 +387,10 @@ func (w *AppWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) err
 	return w.store.SetShowHypercredits(scope, enabled)
 }
 
+func (w *AppWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	return w.store.SetSymbolHints(scope, enabled)
+}
+
 func (w *AppWorkspace) SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error {
 	if err := w.store.SetProviderAPIKey(scope, providerID, apiKey); err != nil {
 		return err

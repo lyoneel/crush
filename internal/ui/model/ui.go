@@ -1183,8 +1183,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyboardEnhancementsMsg:
 		m.keyenh = msg
 		if msg.SupportsKeyDisambiguation() {
-			m.keyMap.Models.SetHelp("ctl+m", "models")
-			m.keyMap.Editor.Newline.SetHelp("⇧+⏎", "newline")
+			m.keyMap.Models.SetHelp("ctrl+m", "models")
+			m.keyMap.Editor.Newline.SetHelp("shift+enter", "newline")
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
@@ -3961,7 +3961,7 @@ func (m *UI) ShortHelp() []key.Binding {
 	tab := k.Tab
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ctl+p", "commands")
+		commands.SetHelp("/ or ctrl+p", "commands")
 	}
 
 	switch m.state {
@@ -4081,7 +4081,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 	hasSession := m.hasSession()
 	commands := k.Commands
 	if m.focus == uiFocusEditor && m.textarea.Value() == "" {
-		commands.SetHelp("/ or ctl+p", "commands")
+		commands.SetHelp("/ or ctrl+p", "commands")
 	}
 
 	switch m.state {

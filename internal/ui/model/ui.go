@@ -4802,7 +4802,7 @@ func (m *UI) toggleInputMode() tea.Cmd {
 	// (Ctrl+Y, the command palette) survives entering plan mode.
 	if m.com.Workspace.PermissionSkipRequests() && m.cycleYolo {
 		m.toggleYoloMode()
-		return util.ReportInfo("input mode: code")
+		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg})
 	}
 	return m.setInputMode(uiInputModePlan)
 }
@@ -4829,6 +4829,7 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 const (
 	planModeBannerMsg = "Plan with Crush before generating any code."
 	yoloModeBannerMsg = "Skip permission prompts. System level commands will be blocked."
+	codeModeBannerMsg = "Generate and edit freely."
 )
 
 func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
@@ -4879,7 +4880,7 @@ func (m *UI) applyModeSwitch(msg modeSwitchedMsg) []tea.Cmd {
 	case msg.yolo:
 		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
 	default:
-		cmds = append(cmds, util.ReportInfo("input mode: code"))
+		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg}))
 	}
 	return cmds
 }

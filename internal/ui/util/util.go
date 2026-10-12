@@ -35,6 +35,7 @@ const (
 	InfoTypeUpdate
 	InfoTypePlan
 	InfoTypeYolo
+	InfoTypeCode
 )
 
 func NewInfoMsg(info string) InfoMsg {

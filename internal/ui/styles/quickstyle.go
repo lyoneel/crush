@@ -1165,7 +1165,7 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Dialog.Sessions.InfoFocused = lipgloss.NewStyle().Foreground(o.fgBase)
 
 	s.Status.Help = lipgloss.NewStyle().Padding(0, 1)
-	s.Status.ModeBadgeStd = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("CODE")
+	s.Status.ModeBadgeStd = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.successMostSubtle).Padding(0, 1).Bold(true).SetString("CODE")
 	s.Status.ModeBadgePlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.primary).Padding(0, 1).Bold(true).SetString("PLAN")
 	s.Status.ModeBadgeYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.busy).Padding(0, 1).Bold(true).SetString("YOLO")
 	s.Status.ModeBannerPlanBadge = s.Status.ModeBadgePlan
@@ -1174,7 +1174,7 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.ModeBannerYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.yolo).Padding(0, 1)
 	s.Status.ModeBannerCodeBadge = s.Status.ModeBadgeStd
 	s.Status.ModeBannerCode = lipgloss.NewStyle().Foreground(o.success).Background(o.successMostSubtle).Padding(0, 1)
-	s.Status.SuccessIndicator = base.Foreground(o.bgLessVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("OKAY!")
+	s.Status.SuccessIndicator = base.Foreground(o.bgLessVisible).Background(o.successMostSubtle).Padding(0, 1).Bold(true).SetString("OKAY!")
 	s.Status.InfoIndicator = s.Status.SuccessIndicator
 	s.Status.UpdateIndicator = s.Status.SuccessIndicator.SetString("HEY!")
 	s.Status.WarnIndicator = s.Status.SuccessIndicator.Foreground(o.bgMostVisible).Background(o.warning).SetString("WARNING")

@@ -1163,7 +1163,7 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Dialog.Sessions.InfoFocused = lipgloss.NewStyle().Foreground(o.fgBase)
 
 	s.Status.Help = lipgloss.NewStyle().Padding(0, 1)
-	s.Status.ModeBadgeStd = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("NORM")
+	s.Status.ModeBadgeStd = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("CODE")
 	s.Status.ModeBadgePlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.primary).Padding(0, 1).Bold(true).SetString("PLAN")
 	s.Status.ModeBadgeYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.busy).Padding(0, 1).Bold(true).SetString("YOLO")
 	s.Status.ModeBannerPlanBadge = s.Status.ModeBadgePlan

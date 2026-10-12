@@ -102,11 +102,11 @@ default).
 
 ### Visually stable status bar [stable]
 
-The status bar now carries a `NORM` badge while neither plan nor
-yolo is active, alongside the existing `PLAN` and `YOLO` badges.
+The status bar now carries a `CODE` badge while neither `PLAN` nor
+`YOLO` is active, alongside the existing `PLAN` and `YOLO` badges.
 
 The real problem is movement: the shift does not happen between
-plan and yolo — both carry a badge — but on entering or leaving the
+`PLAN` and `YOLO` — both carry a badge — but on entering or leaving the
 standard mode, which had no badge, and the status bar text moved
 horizontally on every such transition. The standard mode never
 needed a badge, but with one in every mode the bar keeps the same

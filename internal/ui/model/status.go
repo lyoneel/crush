@@ -87,7 +87,7 @@ func (s *Status) SetMode(mode uiInputMode, permMode permission.PermissionMode) {
 }
 
 // modeBadge renders the badge for the current mode. Every mode gets a
-// badge: the standard coding mode shows NORM in the success green, so
+// badge: the standard coding mode shows CODE in the success green, so
 // the indicator area never changes shape between modes.
 func (s *Status) modeBadge() string {
 	t := s.com.Styles

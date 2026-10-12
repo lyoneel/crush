@@ -41,7 +41,7 @@ func TestFireLifecycleHookWritesPayload(t *testing.T) {
 // exists as soon as the call returns.
 func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 	env := testEnv(t)
-	logFile := filepath.Join(env.workingDir, "hooks.log")
+	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
@@ -61,7 +61,7 @@ func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 // lands in the log later.
 func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 	env := testEnv(t)
-	logFile := filepath.Join(env.workingDir, "hooks.log")
+	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
@@ -83,7 +83,7 @@ func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 // the async flag so the transcript renders the fire-and-forget glyph.
 func TestFireLifecycleHookDefaultAsyncRecordsFinishedRun(t *testing.T) {
 	env := testEnv(t)
-	logFile := filepath.Join(env.workingDir, "hooks.log")
+	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
@@ -154,7 +154,7 @@ func TestLifecycleRunnerFromStore(t *testing.T) {
 func newPreSessionCoordinator(t *testing.T) (*coordinator, string) {
 	t.Helper()
 	env := testEnv(t)
-	logFile := filepath.Join(env.workingDir, "hooks.log")
+	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
@@ -242,7 +242,7 @@ func TestRunPostPromptRecorded(t *testing.T) {
 	sa, env := newStreamTestAgent(t)
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
-	logFile := filepath.Join(env.workingDir, "hooks.log")
+	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg.Config().Hooks = map[string][]config.HookConfig{
 		hooks.EventPostPrompt: {{Command: "cat >> '" + logFile + "'"}},
 	}

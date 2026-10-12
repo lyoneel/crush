@@ -339,7 +339,13 @@ func (r *Runner) runOne(parentCtx context.Context, hook config.HookConfig, envVa
 		}
 	}
 
-	if shell.IsInterrupt(err) {
+	// Timeout: the hook's own deadline expired. On Unix a killed child
+	// surfaces as a context error; on Windows the interpreter can report
+	// a plain exit status instead, so a deadline expiry on the hook
+	// context classifies as a timeout even behind an exit error.
+	timedOut := shell.IsInterrupt(err) ||
+		(parentCtx.Err() == nil && ctx.Err() != nil && err != nil)
+	if timedOut {
 		// Distinguish timeout from parent cancellation.
 		if parentCtx.Err() != nil {
 			slog.Debug("Hook cancelled by parent context", "command", hook.Command)

@@ -876,7 +876,7 @@ func (h *HookConfig) DisplayName() string {
 	if h.Name != "" {
 		return h.Name
 	}
-	if strings.Contains(h.Command, "/") {
+	if strings.ContainsRune(h.Command, '/') || strings.ContainsRune(h.Command, '\\') {
 		return filepath.Base(h.Command)
 	}
 	return h.Command

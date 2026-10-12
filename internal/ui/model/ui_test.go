@@ -978,7 +978,7 @@ func TestStatusModeBadge(t *testing.T) {
 		perm  permission.PermissionMode
 		badge string
 	}{
-		{"code", uiInputModeCode, permission.PermissionModeNormal, "NORM"},
+		{"code", uiInputModeCode, permission.PermissionModeNormal, "CODE"},
 		{"yolo", uiInputModeCode, permission.PermissionModeYolo, "YOLO"},
 		{"sysadmin", uiInputModeCode, permission.PermissionModeSysadmin, "SYSADMIN MODE"},
 		{"plan wins", uiInputModePlan, permission.PermissionModeSysadmin, "PLAN"},

@@ -62,7 +62,12 @@ func hyperBuilder(model string) builderFunc {
 }
 
 func testEnv(t *testing.T) fakeEnv {
-	workingDir := filepath.Join(os.TempDir(), "crush-test", t.Name())
+	// The literal /tmp/crush-test path is load-bearing: the recorded VCR
+	// cassettes embed this directory in request bodies (prompt env block,
+	// tool results). Tools also emit paths under it, so the real directory
+	// must equal the pinned prompt directory on every OS. On Windows the
+	// path resolves relative to the drive root, which MkdirAll creates.
+	workingDir := filepath.Join("/tmp/crush-test/", t.Name())
 	os.RemoveAll(workingDir)
 
 	err := os.MkdirAll(workingDir, 0o755)

@@ -608,6 +608,8 @@ type Styles struct {
 		ModeBannerPlanBadge lipgloss.Style
 		ModeBannerYolo      lipgloss.Style
 		ModeBannerYoloBadge lipgloss.Style
+		ModeBannerCode      lipgloss.Style
+		ModeBannerCodeBadge lipgloss.Style
 
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style

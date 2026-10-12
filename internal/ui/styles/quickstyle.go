@@ -1172,6 +1172,8 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.ModeBannerPlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.planMoreSubtle).Padding(0, 1)
 	s.Status.ModeBannerYoloBadge = s.Status.ModeBadgeYolo
 	s.Status.ModeBannerYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.yolo).Padding(0, 1)
+	s.Status.ModeBannerCodeBadge = s.Status.ModeBadgeStd
+	s.Status.ModeBannerCode = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.planMoreSubtle).Padding(0, 1)
 	s.Status.SuccessIndicator = base.Foreground(o.bgLessVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("OKAY!")
 	s.Status.InfoIndicator = s.Status.SuccessIndicator
 	s.Status.UpdateIndicator = s.Status.SuccessIndicator.SetString("HEY!")

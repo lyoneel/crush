@@ -5050,7 +5050,7 @@ func (m *UI) toggleInputMode() tea.Cmd {
 		}
 		// Fourth step: sysadmin -> normal, closing the cycle.
 		m.setYolo(false)
-		return util.ReportInfo("input mode: code")
+		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg})
 	}
 	return m.setInputMode(uiInputModePlan)
 }
@@ -5076,6 +5076,7 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 const (
 	planModeBannerMsg     = "Plan with Crush before generating any code."
 	yoloModeBannerMsg     = "System level commands stay blocked. The rest run unprompted."
+	codeModeBannerMsg = "Generate and edit freely."
 	sysadminModeBannerMsg = "All commands are unblocked. Use wisely."
 )
 
@@ -5133,7 +5134,7 @@ func (m *UI) applyModeSwitch(msg modeSwitchedMsg) []tea.Cmd {
 	case msg.perm == permission.PermissionModeYolo:
 		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
 	default:
-		cmds = append(cmds, util.ReportInfo("input mode: code"))
+		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg}))
 	}
 	return cmds
 }

@@ -63,7 +63,7 @@ func hyperBuilder(model string) builderFunc {
 }
 
 func testEnv(t *testing.T) fakeEnv {
-	workingDir := filepath.Join("/tmp/crush-test/", t.Name())
+	workingDir := filepath.Join(os.TempDir(), "crush-test", t.Name())
 	os.RemoveAll(workingDir)
 
 	err := os.MkdirAll(workingDir, 0o755)
@@ -132,7 +132,7 @@ func testSessionAgent(env fakeEnv, large, small fantasy.LanguageModel, systemPro
 	return agent
 }
 
-func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel) (SessionAgent, error) {
+func coderAgent(t *testing.T, r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel) (SessionAgent, error) {
 	fixedTime := func() time.Time {
 		t, _ := time.Parse("1/2/2006", "1/1/2025")
 		return t
@@ -144,7 +144,7 @@ func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel
 	prompt, err := loadPrompt(cfg, "coder",
 		prompt.WithTimeFunc(fixedTime),
 		prompt.WithPlatform("linux"),
-		prompt.WithWorkingDir(filepath.ToSlash(env.workingDir)),
+		prompt.WithWorkingDir("/tmp/crush-test/"+t.Name()),
 	)
 	if err != nil {
 		return nil, err

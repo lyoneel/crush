@@ -66,9 +66,9 @@ func TestStatusDrawExpandedHelpRowsAlignWithStdBadge(t *testing.T) {
 	st.SetMode(uiInputModeCode, false)
 
 	lines := drawStatusLines(t, st, 100, 6)
-	// The standard mode always carries the NORM badge, so the badge row
+	// The standard mode always carries the CODE badge, so the badge row
 	// starts with the badge inset and its padding.
-	require.True(t, strings.HasPrefix(lines[0], strings.Repeat(" ", badgeLeftInset)+" "+"NORM"),
+	require.True(t, strings.HasPrefix(lines[0], strings.Repeat(" ", badgeLeftInset)+" "+"CODE"),
 		"the badge row must start with the badge inset and its padding: %q", lines[0])
 
 	// Every subsequent help row must start at the same column as the hints

@@ -960,7 +960,6 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 				return m, tea.Batch(cmds...)
 			}
-			m.turnOutcome = ""
 		}
 		cmds = append(cmds, m.applyLoadedSession(msg)...)
 

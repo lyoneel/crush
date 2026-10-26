@@ -42,7 +42,7 @@ func TestFireLifecycleHookWritesPayload(t *testing.T) {
 func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 	env := testEnv(t)
 	logFile := filepath.Join(t.TempDir(), "hooks.log")
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(t.Context(), env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
 		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'"}},
@@ -62,7 +62,7 @@ func TestFireLifecycleHookDefaultSyncWaits(t *testing.T) {
 func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 	env := testEnv(t)
 	logFile := filepath.Join(t.TempDir(), "hooks.log")
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(t.Context(), env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
 		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'", Async: true}},
@@ -84,7 +84,7 @@ func TestFireLifecycleHookDefaultAsyncFiresAndForgets(t *testing.T) {
 func TestFireLifecycleHookDefaultAsyncRecordsFinishedRun(t *testing.T) {
 	env := testEnv(t)
 	logFile := filepath.Join(t.TempDir(), "hooks.log")
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(t.Context(), env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
 		hooks.EventPrePrompt: {{Command: "cat >> '" + logFile + "'", Async: true}},
@@ -155,7 +155,7 @@ func newPreSessionCoordinator(t *testing.T) (*coordinator, string) {
 	t.Helper()
 	env := testEnv(t)
 	logFile := filepath.Join(t.TempDir(), "hooks.log")
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(t.Context(), env.workingDir, "", false)
 	require.NoError(t, err)
 	cfg.Config().Hooks = map[string][]config.HookConfig{
 		hooks.EventPreSession: {{Command: "cat >> '" + logFile + "'"}},
@@ -240,7 +240,7 @@ func TestFirePreSessionIgnoresHookOnlyMessages(t *testing.T) {
 // code because the PostPrompt event does not exist.
 func TestRunPostPromptRecorded(t *testing.T) {
 	sa, env := newStreamTestAgent(t)
-	cfg, err := config.Init(env.workingDir, "", false)
+	cfg, err := config.Init(t.Context(), env.workingDir, "", false)
 	require.NoError(t, err)
 	logFile := filepath.Join(t.TempDir(), "hooks.log")
 	cfg.Config().Hooks = map[string][]config.HookConfig{

@@ -154,6 +154,9 @@ func (m *UI) applyLoadedSession(msg loadSessionMsg) []tea.Cmd {
 		if cmd := m.resetPlanModeState(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		// The turn outcome belongs to the session that produced it, so a
+		// switch drops it from the terminal status line.
+		m.turnOutcome = ""
 	}
 	m.setState(uiChat, m.focus)
 	m.session = msg.session

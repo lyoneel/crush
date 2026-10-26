@@ -216,7 +216,7 @@ type activeCancel struct {
 // zero snapshot so the payload omits context_usage entirely.
 func (a *sessionAgent) usageSourceFunc(sess session.Session) hooks.UsageSourceFunc {
 	return func(string) hooks.UsageSource {
-		return usageSourceFrom(sess, a.largeModel.Get())
+		return usageSourceFrom(sess, a.models().Large)
 	}
 }
 

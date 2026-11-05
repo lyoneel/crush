@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -163,13 +164,17 @@ func anyMCPStarting(states map[string]mcp.ClientInfo) bool {
 }
 
 // mcpInfo renders the MCP status section showing active MCP clients and their
-// tool/prompt counts.
-func (m *UI) mcpInfo(width, maxItems int, isSection bool) string {
+// tool/prompt counts. With the sidebar flag the section hides disabled
+// servers; the landing view and the compact details keep the full list.
+func (m *UI) mcpInfo(width, maxItems int, isSection, sidebar bool) string {
 	var mcps []mcp.ClientInfo
 	t := m.com.Styles
 
-	for _, mcp := range m.com.Config().MCP.Sorted() {
-		if state, ok := m.mcpStates[mcp.Name]; ok {
+	for _, cfg := range m.com.Config().MCP.Sorted() {
+		if state, ok := m.mcpStates[cfg.Name]; ok {
+			if sidebar && state.State == mcp.StateDisabled {
+				continue
+			}
 			mcps = append(mcps, state)
 		}
 	}
@@ -186,17 +191,20 @@ func (m *UI) mcpInfo(width, maxItems int, isSection bool) string {
 	return lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("%s\n\n%s", title, list))
 }
 
-// mcpCounts formats tool, prompt, and resource counts for display.
+// mcpCounts formats tool, prompt, and resource counts in the LSP
+// diagnostics shape, a letter glued to its count with space-separated
+// groups, colored like the disabled status text: T3 P1 R100. Zero
+// counts stay hidden.
 func mcpCounts(t *styles.Styles, counts mcp.Counts) string {
 	var parts []string
 	if counts.Tools > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d tools", counts.Tools)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("T%d", counts.Tools)))
 	}
 	if counts.Prompts > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d prompts", counts.Prompts)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("P%d", counts.Prompts)))
 	}
 	if counts.Resources > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d resources", counts.Resources)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("R%d", counts.Resources)))
 	}
 	return strings.Join(parts, " ")
 }
@@ -213,9 +221,9 @@ func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) strin
 		if m.Name == config.DockerMCPName {
 			title = "Docker MCP"
 		}
-		title = t.Resource.Name.Render(title)
 		var description string
 		var extraContent string
+		var titleColor color.Color
 
 		switch m.State {
 		case mcp.StateStarting:
@@ -242,15 +250,22 @@ func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) strin
 			icon = t.Resource.NeedsAuthIcon.String()
 			description = t.Resource.StatusText.Render("needs authentication")
 		case mcp.StateDisabled:
+			// The disabled state speaks through the icon and the name
+			// color alone; no status word. The name passes unstyled so
+			// common.Status renders it once, in the disabled color.
 			icon = t.Resource.DisabledIcon.String()
-			description = t.Resource.StatusText.Render("disabled")
+			titleColor = t.Resource.StatusText.GetForeground()
 		default:
 			icon = t.Resource.OfflineIcon.String()
+		}
+		if titleColor == nil {
+			title = t.Resource.Name.Render(title)
 		}
 
 		renderedMcps = append(renderedMcps, common.Status(t, common.StatusOpts{
 			Icon:         icon,
 			Title:        title,
+			TitleColor:   titleColor,
 			Description:  description,
 			ExtraContent: extraContent,
 		}, width))

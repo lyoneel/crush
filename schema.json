@@ -1025,6 +1025,21 @@
           ],
           "description": "Exit banner style after quitting Crush",
           "default": "default"
+        },
+        "sidebar_minimalism": {
+          "type": "boolean",
+          "description": "Hide disabled MCPs and LSPs that never activated in the sidebar",
+          "default": true
+        },
+        "show_hypercredits": {
+          "type": "boolean",
+          "description": "Show the Hyper credits balance in the TUI",
+          "default": true
+        },
+        "symbol_hints": {
+          "type": "boolean",
+          "description": "Show key hints as keyboard symbols",
+          "default": true
         }
       },
       "additionalProperties": false,

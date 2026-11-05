@@ -475,7 +475,7 @@ func TestToggleSidebarKeyBinding(t *testing.T) {
 	for _, b := range u.ShortHelp() {
 		shortHelp = append(shortHelp, b.Help().Desc)
 	}
-	require.Contains(t, shortHelp, "toggle sidebar")
+	require.Contains(t, shortHelp, "sidebar")
 
 	var fullHelp []string
 	for _, row := range u.FullHelp() {
@@ -483,7 +483,7 @@ func TestToggleSidebarKeyBinding(t *testing.T) {
 			fullHelp = append(fullHelp, b.Help().Desc)
 		}
 	}
-	require.Contains(t, fullHelp, "toggle sidebar")
+	require.Contains(t, fullHelp, "sidebar")
 }
 
 func TestHandlePlanHandoff_NoMarkerNoInline(t *testing.T) {
@@ -978,10 +978,10 @@ func TestStatusModeBadge(t *testing.T) {
 		perm  permission.PermissionMode
 		badge string
 	}{
-		{"code", uiInputModeCode, permission.PermissionModeNormal, ""},
-		{"yolo", uiInputModeCode, permission.PermissionModeYolo, "YOLO MODE"},
-		{"sysadmin", uiInputModeCode, permission.PermissionModeSysadmin, "SYSADMIN MODE"},
-		{"plan wins", uiInputModePlan, permission.PermissionModeSysadmin, "PLAN MODE"},
+		{"code", uiInputModeCode, permission.PermissionModeNormal, "CODE"},
+		{"yolo", uiInputModeCode, permission.PermissionModeYolo, "YOLO"},
+		{"sysadmin", uiInputModeCode, permission.PermissionModeSysadmin, "SYSADMIN"},
+		{"plan wins", uiInputModePlan, permission.PermissionModeSysadmin, "PLAN"},
 	} {
 		s.SetMode(tc.mode, tc.perm)
 		require.Contains(t, ansi.Strip(s.modeBadge()), tc.badge, tc.name)

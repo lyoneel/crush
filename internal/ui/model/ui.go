@@ -279,6 +279,10 @@ type UI struct {
 	// by setInputMode is still in flight; sending is blocked meanwhile.
 	modeSwitching bool
 
+	// cycleYolo is true while YOLO was enabled by the Shift+Tab input-mode
+	// cycle, which is the only case where the cycle may disable it again.
+	cycleYolo bool
+
 	keyMap KeyMap
 	keyenh tea.KeyboardEnhancementsMsg
 
@@ -412,6 +416,18 @@ type UI struct {
 	// forceCompactMode tracks whether compact mode is forced by user toggle
 	forceCompactMode bool
 
+	// sidebarMinimalism tracks whether the sidebar hides disabled MCPs and
+	// LSPs that never activated (the Toggle Minimalist Sidebar command)
+	sidebarMinimalism bool
+
+	// showHyperCredits tracks whether the TUI renders the Hyper credits
+	// balance (the Toggle Hypercredits command)
+	showHyperCredits bool
+
+	// symbolHints tracks whether key hints render with the symbol style
+	// (the Toggle Symbol Hints command)
+	symbolHints bool
+
 	// isCompact tracks whether we're currently in compact layout mode (either
 	// by user toggle or auto-switch based on window size)
 	isCompact bool
@@ -435,10 +451,9 @@ type UI struct {
 	// in-flight fetch captures it at dispatch and its result is discarded
 	// if the generation has moved on (see workspace_cache.go).
 	promptQueueGen uint64
-	// agentBusyCache / permModeCache memoize the workspace busy and
-	// permission-mode probes (synchronous HTTP round-trips in client/server
-	// mode). Reads never probe; refreshes happen off-thread (see
-	// workspace_cache.go).
+	// agentBusyCache / yoloCache memoize the workspace busy and permission
+	// probes (synchronous HTTP round-trips in client/server mode). Reads
+	// never probe; refreshes happen off-thread (see workspace_cache.go).
 	agentBusyCache    ttlCache
 	permModeCache     modeTTLCache
 	busyFetchInFlight bool
@@ -602,8 +617,8 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 		ui.userThemeSelected = common.ThemeNameFromConfig(cfg) != ""
 	}
 
-	// Seed the permission-mode cache once at construction; afterwards it is
-	// kept fresh by write-through toggles and off-thread refreshes so Update
+	// Seed the yolo cache once at construction; afterwards it is kept
+	// fresh by write-through toggles and off-thread refreshes so Update
 	// and View never probe the workspace synchronously.
 	permMode := com.Workspace.PermissionMode()
 	ui.permModeCache.set(permMode)
@@ -623,6 +638,19 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 
 	// Initialize compact mode from config
 	ui.forceCompactMode = com.Config().Options.TUI.CompactMode
+	// Initialize the sidebar minimalism filter from config (nil-safe;
+	// absent key means enabled).
+	ui.sidebarMinimalism = com.Config().Options.TUI.IsSidebarMinimalism()
+	// Initialize the Hyper credits visibility from config (nil-safe;
+	// absent key means shown). The agent-side fetches feed only the
+	// display, so the kill-switch follows the toggle.
+	ui.showHyperCredits = com.Config().Options.TUI.IsShowHypercredits()
+	hyper.SetDisplayEnabled(ui.showHyperCredits)
+	// Initialize the symbol hints style from config (nil-safe; absent
+	// key means symbols). The status bar holds the translating keymap
+	// wrapper when the style is on.
+	ui.symbolHints = com.Config().Options.TUI.IsSymbolHints()
+	status.SetSymbolHints(ui.symbolHints, ui)
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -698,8 +726,10 @@ func (m *UI) Init() tea.Cmd {
 	}
 	// The credits balance is shown from the first frame on, so fetch it
 	// right away and keep polling it while Crush sits idle. The poll runs
-	// for every provider: it is a no-op unless Hyper is selected.
-	if m.com.IsHyper() {
+	// for every provider: it is a no-op unless the selected model consumes
+	// hypercredits. The fetch is display-only: it is skipped while the
+	// balance display is toggled off.
+	if m.showHyperCredits && m.com.IsHyperCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 	// The branch is shown from the first frame on, so read it now and keep
@@ -949,67 +979,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	case loadSessionMsg:
-		if m.forceCompactMode {
-			m.isCompact = true
-		}
-		// Plan mode is scoped to the session it was enabled in: switching
-		// to another session falls back to code mode and drops any pending
-		// plan handoff. (Loading the session that was just created for the
-		// first plan-mode prompt is not a switch; the IDs match then.)
-		if m.session == nil || m.session.ID != msg.session.ID {
-			if cmd := m.resetPlanModeState(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			m.turnOutcome = ""
-		}
-		m.setState(uiChat, m.focus)
-		m.session = msg.session
-		m.sidebarOffset = 0
-		m.sessionFiles = msg.files
-		// Session switch: the memoized busy state and queued prompts
-		// belong to the previous session. Drop them and re-fetch
-		// off-thread so the queue pill and esc behavior track the new
-		// session instead of a stale one.
-		m.invalidateBusyCaches()
-		m.invalidatePromptQueue()
-		m.promptQueue = 0
-		m.promptQueueItems = nil
-		m.promptQueueCheckedAt = time.Time{}
-		if cmd := m.dispatchBusyRefresh(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
-		msgs := msg.messages
-		if cmd := m.setSessionMessages(msgs); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.restoreModelFromSession(msgs); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		if cmd := m.autoExpandPillsIfReasonable(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		// If a bang command was issued before the session finished
-		// loading, start it now that the chat list is stable.
-		if m.pendingBangCommand != "" {
-			cmds = append(cmds, m.runShellCommandInternal(m.pendingBangCommand, true))
-			m.pendingBangCommand = ""
-		}
-		if hasInProgressTodo(m.session.Todos) {
-			// only start spinner if there is an in-progress todo
-			if m.isAgentBusy() {
-				m.todoIsSpinning = true
-				cmds = append(cmds, m.todoSpinner.Tick)
-			}
-			m.updateLayoutAndSize()
-		}
-		// Reload prompt history for the new session.
-		m.historyReset()
-		cmds = append(cmds, m.loadPromptHistory())
-		m.updateLayoutAndSize()
+		cmds = append(cmds, m.applyLoadedSession(msg)...)
 
 	case sessionFilesUpdatesMsg:
 		m.sessionFiles = msg.sessionFiles
@@ -1578,7 +1548,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// While a session runs every response refreshes the balance, so
 		// the poll only has to cover idle time. Re-arm it either way: the
 		// next poll may well land after the agent went idle again.
-		if m.com.IsHyper() && !m.isAgentBusy() {
+		if m.showHyperCredits && m.com.IsHyperCredits() && !m.isAgentBusy() {
 			cmds = append(cmds, m.fetchHyperCredits())
 		}
 		cmds = append(cmds, m.hyperCreditsTicker())
@@ -1619,7 +1589,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.transparent {
 			status = "enabled"
 		}
-		cmds = append(cmds, util.ReportInfo("Transparent background "+status))
+		cmds = append(cmds, util.ReportInfo("Transparent background " + status))
 	case util.ClearStatusMsg:
 		m.status.ClearInfoMsg(msg.Seq)
 	case completions.CompletionItemsLoadedMsg:
@@ -1972,6 +1942,8 @@ func (m *UI) setMessagePlanFlags(items []chat.MessageItem) {
 
 // appendSessionMessage appends a new message to the current session in the chat
 // if the message is a tool result it will update the corresponding tool call message
+// appendSessionMessage appends a new message to the current session in the chat
+// if the message is a tool result it will update the corresponding tool call message
 func (m *UI) appendSessionMessage(msg message.Message) tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -2245,11 +2217,17 @@ func (m *UI) handleChildSessionMessage(event pubsub.Event[message.Message]) tea.
 }
 
 func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
-	var cmds []tea.Cmd
 	action := m.dialog.Update(msg)
 	if action == nil {
-		return tea.Batch(cmds...)
+		return nil
 	}
+
+	return m.handleDialogAction(action)
+}
+
+// handleDialogAction dispatches a resolved dialog action.
+func (m *UI) handleDialogAction(action dialog.Action) tea.Cmd {
+	var cmds []tea.Cmd
 
 	isOnboarding := m.state == uiOnboarding
 
@@ -2381,6 +2359,47 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionToggleCompactMode:
 		cmds = append(cmds, m.toggleCompactMode())
+		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleSidebarMinimalism:
+		m.sidebarMinimalism = !m.sidebarMinimalism
+		if err := m.com.Workspace.SetSidebarMinimalism(config.ScopeGlobal, m.sidebarMinimalism); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "disabled"
+			if m.sidebarMinimalism {
+				status = "enabled"
+			}
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Sidebar minimalism "+status)))
+		}
+		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleHypercredits:
+		m.showHyperCredits = !m.showHyperCredits
+		hyper.SetDisplayEnabled(m.showHyperCredits)
+		if err := m.com.Workspace.SetShowHypercredits(config.ScopeGlobal, m.showHyperCredits); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "hidden"
+			if m.showHyperCredits {
+				status = "shown"
+				// The balance fetches were skipped while hidden, so the
+				// freshly shown display needs a current value.
+				cmds = append(cmds, m.fetchHyperCredits())
+			}
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Hypercredits "+status)))
+		}
+		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleSymbolHints:
+		m.symbolHints = !m.symbolHints
+		if err := m.com.Workspace.SetSymbolHints(config.ScopeGlobal, m.symbolHints); err != nil {
+			cmds = append(cmds, util.ReportError(err))
+		} else {
+			status := "spelled out"
+			if m.symbolHints {
+				status = "symbolized"
+			}
+			m.status.SetSymbolHints(m.symbolHints, m)
+			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Symbol hints "+status)))
+		}
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionTogglePills:
 		if cmd := m.togglePillsExpanded(); cmd != nil {
@@ -2824,10 +2843,19 @@ func (m *UI) refreshHyperAndRetrySelect(msg dialog.ActionSelectModel) tea.Cmd {
 // the stored value here is enough: until the first fetch lands the
 // balance is unknown and stays hidden.
 func (m *UI) updateHyperCredits() {
-	if !m.com.IsHyper() {
+	if !m.showHyperCredits || !m.com.IsHyperCredits() {
 		return
 	}
 	m.hyperCredits = hyper.Balance()
+}
+
+// headerCredits returns the credits value the compact header shows: nil
+// when the balance display is toggled off, so the header hides it.
+func (m *UI) headerCredits() *int {
+	if !m.showHyperCredits {
+		return nil
+	}
+	return m.hyperCredits
 }
 
 // fetchHyperCredits returns a command that asynchronously fetches the
@@ -3064,14 +3092,21 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
 		cmds = append(cmds, util.ReportError(err))
 	} else {
-		if msg.ModelType == config.SelectedModelTypeLarge {
+		if msg.ModelType == config.SelectedModelTypeLarge || msg.ApplyBoth {
 			// Swap the theme live based on the newly selected large
 			// model's provider. Skipped when the provider resolves to
 			// the already-active theme, which avoids a full markdown
 			// re-render of the transcript on every selection.
 			m.applyThemeForProvider(providerID)
 		}
-		if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
+		if msg.ApplyBoth {
+			// Shift+confirm applies the chosen model to both task
+			// sizes, so the small model no longer falls back to a
+			// provider default.
+			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, msg.Model); err != nil {
+				cmds = append(cmds, util.ReportError(err))
+			}
+		} else if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
 			// Ensure small model is set is unset.
 			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
 			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
@@ -3093,6 +3128,9 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 			modelName = catwalkModel.Name
 		}
 		modelMsg := fmt.Sprintf("%s model changed to %s", modelType, modelName)
+		if msg.ApplyBoth {
+			modelMsg = fmt.Sprintf("Large and small models changed to %s", modelName)
+		}
 
 		return util.NewInfoMsg(modelMsg)
 	}))
@@ -3114,7 +3152,7 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		if cmd := m.dispatchBusyRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-	} else if m.com.IsHyper() {
+	} else if m.showHyperCredits && m.com.IsHyperCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 
@@ -3284,7 +3322,8 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 				return true
 			}
-			if m.toggleMode(permission.PermissionModeYolo) {
+			yolo := m.toggleMode(permission.PermissionModeYolo)
+			if yolo {
 				cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
 			} else {
 				cmds = append(cmds, util.ReportInfo("Yolo mode disabled"))
@@ -3754,7 +3793,7 @@ func (m *UI) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		m.detailsOpen,
 		area.Dx(),
 		m.lspErrorCount(),
-		m.hyperCredits,
+		m.headerCredits(),
 		m.gitBranch,
 		m.subAgentsRunning,
 	)
@@ -4002,17 +4041,26 @@ func (m *UI) ShortHelp() []key.Binding {
 	var binds []key.Binding
 	k := &m.keyMap
 
-	// When an inline editor is active, show its help.
+	// When an inline editor is active, show its help. The symbol style
+	// applies through the translation; when symbols are off the
+	// bindings render canonically.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
+			if m.symbolHints {
+				return common.SymbolBindings(m.activeInline.ShortHelp())
+			}
 			return m.activeInline.ShortHelp()
 		}
-		return []key.Binding{
+		binds = []key.Binding{
 			m.inlineFocusHelp(),
 			k.Chat.UpDown,
 			k.Chat.PageUp,
 			k.Chat.PageDown,
 		}
+		if m.symbolHints {
+			return common.SymbolBindings(binds)
+		}
+		return binds
 	}
 
 	tab := k.Tab
@@ -4038,7 +4086,7 @@ func (m *UI) ShortHelp() []key.Binding {
 
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4107,7 +4155,11 @@ func (m *UI) FullHelp() [][]key.Binding {
 	// When an inline editor is active, show its help.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
-			return [][]key.Binding{m.activeInline.ShortHelp()}
+			binds := [][]key.Binding{m.activeInline.ShortHelp()}
+			if m.symbolHints {
+				return [][]key.Binding{common.SymbolBindings(binds[0])}
+			}
+			return binds
 		}
 		return [][]key.Binding{
 			{m.inlineFocusHelp()},
@@ -4159,7 +4211,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 		tab := k.Tab
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4361,7 +4413,86 @@ func (m *UI) attachmentsLimitReached() bool {
 	return max > 0 && len(m.attachments.List()) >= max
 }
 
+// setPermissionMode writes mode to the workspace and through the
+// permission-mode cache (no re-probe needed), then refreshes the editor
+// prompt. Every permission-mode write goes through here, so the cache is
+// never left trailing the workspace.
+func (m *UI) setPermissionMode(mode permission.PermissionMode) {
+	m.com.Workspace.PermissionSetMode(mode)
+	m.permModeCache.set(mode)
+	// Supersede any in-flight busy/permission probe: its result carries the
+	// old generation and would otherwise overwrite the value we just wrote.
+	// Bump the generation (rather than invalidateBusyCaches, which would
+	// clear the fresh value) so applyBusyState's guard discards and
+	// re-dispatches the stale probe.
+	m.busyFetchGen++
+	m.setEditorPrompt(mode)
+}
+
+// setYolo turns YOLO on or off. Turning it off goes all the way back to
+// normal, so a sysadmin session that declines YOLO really does get its
+// prompts back rather than landing one rung down.
+func (m *UI) setYolo(on bool) {
+	mode := permission.PermissionModeNormal
+	if on {
+		mode = permission.PermissionModeYolo
+	}
+	m.setPermissionMode(mode)
+}
+
+// toggleMode flips the permission mode between target and Normal. It reports
+// whether target is now the active mode.
+func (m *UI) toggleMode(target permission.PermissionMode) (enabled bool) {
+	mode := permission.PermissionModeNormal
+	if m.com.Workspace.PermissionMode() != target {
+		mode = target
+		enabled = true
+	}
+	m.setPermissionMode(mode)
+	return enabled
+}
+
+// permissionModeName is the human-readable name for a permission mode.
+func permissionModeName(mode permission.PermissionMode) string {
+	switch mode {
+	case permission.PermissionModeYolo:
+		return "yolo"
+	case permission.PermissionModeSysadmin:
+		return "sysadmin"
+	default:
+		return "normal"
+	}
+}
+
+// toggleModeAndReport flips the permission mode and announces where it
+// landed. Reaching a mode from the command palette shows the same badge
+// banner as reaching it from the Shift+Tab cycle, so one mode does not
+// announce itself two different ways depending on the road in. Dropping
+// back to normal is ordinary news and reads as such: it names the mode
+// rather than saying "disabled", which is a lie when the toggle landed
+// somewhere rather than switching something off.
+func (m *UI) toggleModeAndReport(target permission.PermissionMode) tea.Cmd {
+	if !m.toggleMode(target) {
+		return util.ReportInfo("Permission mode: " + permissionModeName(permission.PermissionModeNormal))
+	}
+	switch target {
+	case permission.PermissionModeSysadmin:
+		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeSysadmin, Msg: sysadminModeBannerMsg})
+	case permission.PermissionModeYolo:
+		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg})
+	default:
+		return util.ReportInfo("Permission mode: " + permissionModeName(target))
+	}
+}
+
 // toggleCompactMode toggles compact mode between uiChat and uiChatCompact states.
+func (m *UI) dropPendingEcho() {
+	m.pending.echo = nil
+	m.chat.RemoveMessage(chat.PendingUserID)
+}
+
+
+
 func (m *UI) toggleCompactMode() tea.Cmd {
 	m.forceCompactMode = !m.forceCompactMode
 
@@ -4816,80 +4947,8 @@ func editorFileMsg(path string) tea.Msg {
 	}
 }
 
-// setPermissionMode writes mode to the workspace and through the
-// permission-mode cache (no re-probe needed), then refreshes the editor
-// prompt. Every permission-mode write goes through here, so the cache is
-// never left trailing the workspace.
-func (m *UI) setPermissionMode(mode permission.PermissionMode) {
-	m.com.Workspace.PermissionSetMode(mode)
-	m.permModeCache.set(mode)
-	// Supersede any in-flight busy/permission probe: its result carries the
-	// old generation and would otherwise overwrite the value we just wrote.
-	// Bump the generation (rather than invalidateBusyCaches, which would
-	// clear the fresh value) so applyBusyState's guard discards and
-	// re-dispatches the stale probe.
-	m.busyFetchGen++
-	m.setEditorPrompt(mode)
-}
-
-// setYolo turns YOLO on or off. Turning it off goes all the way back to
-// normal, so a sysadmin session that declines YOLO really does get its
-// prompts back rather than landing one rung down.
-func (m *UI) setYolo(on bool) {
-	mode := permission.PermissionModeNormal
-	if on {
-		mode = permission.PermissionModeYolo
-	}
-	m.setPermissionMode(mode)
-}
-
-// toggleMode flips the permission mode between target and Normal. It reports
-// whether target is now the active mode.
-func (m *UI) toggleMode(target permission.PermissionMode) (enabled bool) {
-	mode := permission.PermissionModeNormal
-	if m.com.Workspace.PermissionMode() != target {
-		mode = target
-		enabled = true
-	}
-	m.setPermissionMode(mode)
-	return enabled
-}
-
-// permissionModeName is the human-readable name for a permission mode.
-func permissionModeName(mode permission.PermissionMode) string {
-	switch mode {
-	case permission.PermissionModeYolo:
-		return "yolo"
-	case permission.PermissionModeSysadmin:
-		return "sysadmin"
-	default:
-		return "normal"
-	}
-}
-
-// toggleModeAndReport flips the permission mode and announces where it
-// landed. Reaching a mode from the command palette shows the same badge
-// banner as reaching it from the Shift+Tab cycle, so one mode does not
-// announce itself two different ways depending on the road in. Dropping
-// back to normal is ordinary news and reads as such: it names the mode
-// rather than saying "disabled", which is a lie when the toggle landed
-// somewhere rather than switching something off.
-func (m *UI) toggleModeAndReport(target permission.PermissionMode) tea.Cmd {
-	if !m.toggleMode(target) {
-		return util.ReportInfo("Permission mode: " + permissionModeName(permission.PermissionModeNormal))
-	}
-	switch target {
-	case permission.PermissionModeSysadmin:
-		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeSysadmin, Msg: sysadminModeBannerMsg})
-	case permission.PermissionModeYolo:
-		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg})
-	default:
-		return util.ReportInfo("Permission mode: " + permissionModeName(target))
-	}
-}
-
-// setEditorPrompt configures the textarea prompt function based on the current
-// permission mode, or whether plan or bang mode is enabled.
+// setEditorPrompt configures the textarea prompt function based on the
+// current permission mode, or whether plan or bang mode is enabled.
 func (m *UI) setEditorPrompt(mode permission.PermissionMode) {
 	if m.bangMode {
 		m.textarea.SetPromptFunc(4, m.bangPromptFunc)
@@ -4973,11 +5032,6 @@ func (m *UI) bangPromptFunc(info textarea.PromptInfo) string {
 	return t.Editor.PromptBangDotsBlurred.Render()
 }
 
-// toggleInputMode advances the Shift+Tab cycle by one position. The cycle is
-// a ring of four positions read straight off the current state — code ->
-// plan -> YOLO -> sysadmin -> code. Nothing is remembered between presses,
-// so the next position is always the one the badge implies, whether the
-// permission mode came from this cycle or from Ctrl+Y.
 func (m *UI) toggleInputMode() tea.Cmd {
 	if m.isAgentBusy() || m.modeSwitching {
 		return util.ReportWarn("Agent is busy, please wait before switching input mode...")
@@ -5000,7 +5054,7 @@ func (m *UI) toggleInputMode() tea.Cmd {
 		}
 		// Fourth step: sysadmin -> normal, closing the cycle.
 		m.setYolo(false)
-		return util.ReportInfo("input mode: code")
+		return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg})
 	}
 	return m.setInputMode(uiInputModePlan)
 }
@@ -5014,11 +5068,12 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 	if m.isAgentBusy() || m.modeSwitching {
 		return util.ReportWarn("Agent is busy, please wait before switching input mode...")
 	}
-	// Idempotent by design: a sysadmin session carried into plan mode keeps
-	// its mode rather than being knocked down to plain YOLO.
 	if !m.yoloActive() {
 		m.setYolo(true)
 	}
+	// Explicit activation pins YOLO: the Shift+Tab cycle must not disable
+	// it on the next pass.
+	m.cycleYolo = false
 	return m.setInputMode(uiInputModeCode)
 }
 
@@ -5026,6 +5081,7 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 const (
 	planModeBannerMsg     = "Plan with Crush before generating any code."
 	yoloModeBannerMsg     = "System level commands stay blocked. The rest run unprompted."
+	codeModeBannerMsg = "Generate and edit freely."
 	sysadminModeBannerMsg = "All commands are unblocked. Use wisely."
 )
 
@@ -5035,9 +5091,8 @@ func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
 		agentID = config.AgentCoder
 	}
 
-	// The permission mode is orthogonal to the input mode, so report it
-	// alongside the mode instead of treating a YOLO-enabled coder as plain
-	// "code".
+	// YOLO is orthogonal to the input mode, so report it alongside the mode
+	// instead of treating a YOLO-enabled coder as plain "code".
 	perm := permission.PermissionModeNormal
 	if target == uiInputModeCode {
 		perm = m.permModeCached()
@@ -5083,7 +5138,7 @@ func (m *UI) applyModeSwitch(msg modeSwitchedMsg) []tea.Cmd {
 	case msg.perm == permission.PermissionModeYolo:
 		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
 	default:
-		cmds = append(cmds, util.ReportInfo("input mode: code"))
+		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeCode, Msg: codeModeBannerMsg}))
 	}
 	return cmds
 }
@@ -5286,6 +5341,8 @@ func (m *UI) isAgentBusy() bool {
 	}
 	return m.agentBusyCache.val
 }
+
+
 
 // hasSession returns true if there is an active session with a valid ID.
 func (m *UI) hasSession() bool {
@@ -6162,7 +6219,7 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 		// the refresh for the turn's last response is only kicked off once
 		// its request finishes, so it may still be in flight here.
 		m.updateHyperCredits()
-		if m.com.IsHyper() {
+		if m.showHyperCredits && m.com.IsHyperCredits() {
 			cmds = append(cmds, m.fetchHyperCredits())
 		}
 	case notify.TypeAgentError:
@@ -6542,7 +6599,7 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	blocks := []string{
 		title,
 		"",
-		m.modelInfo(width),
+		m.modelInfo(width, false),
 		"",
 	}
 
@@ -6566,8 +6623,8 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	sectionWidth := max(1, min(maxSectionWidth, (width-(columns-1))/columns)) // one space between columns
 	maxItemsPerSection := max(0, remainingHeight-3)                           // Account for section title and spacing
 
-	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false)
-	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false)
+	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false, false)
+	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false, false)
 	skillsSection := m.skillsInfo(sectionWidth, maxItemsPerSection, false)
 	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), sectionWidth, maxItemsPerSection, false)
 	sections := lipgloss.JoinHorizontal(lipgloss.Top, filesSection, " ", lspSection, " ", mcpSection, " ", skillsSection)

@@ -62,6 +62,11 @@ func hyperBuilder(model string) builderFunc {
 }
 
 func testEnv(t *testing.T) fakeEnv {
+	// The literal /tmp/crush-test path is load-bearing: the recorded VCR
+	// cassettes embed this directory in request bodies (prompt env block,
+	// tool results). Tools also emit paths under it, so the real directory
+	// must equal the pinned prompt directory on every OS. On Windows the
+	// path resolves relative to the drive root, which MkdirAll creates.
 	workingDir := filepath.Join("/tmp/crush-test/", t.Name())
 	os.RemoveAll(workingDir)
 
@@ -124,7 +129,7 @@ func testSessionAgent(env fakeEnv, large, small fantasy.LanguageModel, systemPro
 	return agent
 }
 
-func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel) (SessionAgent, error) {
+func coderAgent(t *testing.T, r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel) (SessionAgent, error) {
 	fixedTime := func() time.Time {
 		t, _ := time.Parse("1/2/2006", "1/1/2025")
 		return t
@@ -132,7 +137,7 @@ func coderAgent(r *vcr.Recorder, env fakeEnv, large, small fantasy.LanguageModel
 	prompt, err := coderPrompt(
 		prompt.WithTimeFunc(fixedTime),
 		prompt.WithPlatform("linux"),
-		prompt.WithWorkingDir(filepath.ToSlash(env.workingDir)),
+		prompt.WithWorkingDir("/tmp/crush-test/"+t.Name()),
 	)
 	if err != nil {
 		return nil, err

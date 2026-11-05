@@ -278,7 +278,8 @@ type Styles struct {
 
 	// ModelInfo (model name, provider, reasoning, token/cost summary)
 	ModelInfo struct {
-		Icon                 lipgloss.Style // Model icon (◇)
+		Icon                 lipgloss.Style // Main model icon (◇)
+		SmallIcon            lipgloss.Style // Small model icon (same glyph, subdued)
 		Name                 lipgloss.Style // Model name text
 		Provider             lipgloss.Style // "via <provider>" text
 		ProviderFallback     lipgloss.Style // Provider on its own second line
@@ -458,11 +459,13 @@ type Styles struct {
 
 		// Hooks
 		HookLabel        lipgloss.Style // "Hook" label
+		HookTag          lipgloss.Style // bracket tag for hook lines, e.g. [PreSS]
 		HookName         lipgloss.Style // Hook command name
 		HookMatcher      lipgloss.Style // Matcher regex pattern
 		HookArrow        lipgloss.Style // Arrow indicator
 		HookDetail       lipgloss.Style // Decision detail text
 		HookOK           lipgloss.Style // "OK" status
+		HookFailed       lipgloss.Style // "Timeout" and "Exit <N>" failure statuses
 		HookDenied       lipgloss.Style // "Denied" status
 		HookDeniedLabel  lipgloss.Style // "Hook" label when denied
 		HookDeniedReason lipgloss.Style // Denied reason text
@@ -620,17 +623,20 @@ type Styles struct {
 		Help lipgloss.Style
 
 		// Mode badges shown before the help hints.
-		ModeBadgePlan     lipgloss.Style
-		ModeBadgeYolo     lipgloss.Style
+		ModeBadgeStd  lipgloss.Style
+		ModeBadgePlan lipgloss.Style
+		ModeBadgeYolo lipgloss.Style
 		ModeBadgeSysadmin lipgloss.Style
 
 		// Full-width banners shown when switching modes.
-		ModeBannerPlan          lipgloss.Style
-		ModeBannerPlanBadge     lipgloss.Style
-		ModeBannerYolo          lipgloss.Style
-		ModeBannerYoloBadge     lipgloss.Style
+		ModeBannerPlan      lipgloss.Style
+		ModeBannerPlanBadge lipgloss.Style
+		ModeBannerYolo      lipgloss.Style
+		ModeBannerYoloBadge lipgloss.Style
 		ModeBannerSysadmin      lipgloss.Style
 		ModeBannerSysadminBadge lipgloss.Style
+		ModeBannerCode      lipgloss.Style
+		ModeBannerCodeBadge lipgloss.Style
 
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style
@@ -678,7 +684,41 @@ type Styles struct {
 // ChromaTheme converts the current markdown chroma styles to a chroma
 // StyleEntries map.
 func (s *Styles) ChromaTheme() chroma.StyleEntries {
-	return ChromaEntries(s.Markdown.CodeBlock.Chroma)
+	rules := s.Markdown.CodeBlock
+
+	return chroma.StyleEntries{
+		chroma.Text:                chromaStyle(rules.Chroma.Text),
+		chroma.Error:               chromaStyle(rules.Chroma.Error),
+		chroma.Comment:             chromaStyle(rules.Chroma.Comment),
+		chroma.CommentPreproc:      chromaStyle(rules.Chroma.CommentPreproc),
+		chroma.Keyword:             chromaStyle(rules.Chroma.Keyword),
+		chroma.KeywordReserved:     chromaStyle(rules.Chroma.KeywordReserved),
+		chroma.KeywordNamespace:    chromaStyle(rules.Chroma.KeywordNamespace),
+		chroma.KeywordType:         chromaStyle(rules.Chroma.KeywordType),
+		chroma.Operator:            chromaStyle(rules.Chroma.Operator),
+		chroma.Punctuation:         chromaStyle(rules.Chroma.Punctuation),
+		chroma.Name:                chromaStyle(rules.Chroma.Name),
+		chroma.NameBuiltin:         chromaStyle(rules.Chroma.NameBuiltin),
+		chroma.NameTag:             chromaStyle(rules.Chroma.NameTag),
+		chroma.NameAttribute:       chromaStyle(rules.Chroma.NameAttribute),
+		chroma.NameClass:           chromaStyle(rules.Chroma.NameClass),
+		chroma.NameConstant:        chromaStyle(rules.Chroma.NameConstant),
+		chroma.NameDecorator:       chromaStyle(rules.Chroma.NameDecorator),
+		chroma.NameException:       chromaStyle(rules.Chroma.NameException),
+		chroma.NameFunction:        chromaStyle(rules.Chroma.NameFunction),
+		chroma.NameOther:           chromaStyle(rules.Chroma.NameOther),
+		chroma.Literal:             chromaStyle(rules.Chroma.Literal),
+		chroma.LiteralNumber:       chromaStyle(rules.Chroma.LiteralNumber),
+		chroma.LiteralDate:         chromaStyle(rules.Chroma.LiteralDate),
+		chroma.LiteralString:       chromaStyle(rules.Chroma.LiteralString),
+		chroma.LiteralStringEscape: chromaStyle(rules.Chroma.LiteralStringEscape),
+		chroma.GenericDeleted:      chromaStyle(rules.Chroma.GenericDeleted),
+		chroma.GenericEmph:         chromaStyle(rules.Chroma.GenericEmph),
+		chroma.GenericInserted:     chromaStyle(rules.Chroma.GenericInserted),
+		chroma.GenericStrong:       chromaStyle(rules.Chroma.GenericStrong),
+		chroma.GenericSubheading:   chromaStyle(rules.Chroma.GenericSubheading),
+		chroma.Background:          chromaStyle(rules.Chroma.Background),
+	}
 }
 
 // ChromaEntries converts a markdown chroma config to chroma style entries,

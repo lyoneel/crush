@@ -565,6 +565,30 @@ func (s *ConfigStore) SetCompactMode(scope Scope, enabled bool) error {
 	})
 }
 
+// SetSidebarMinimalism sets the sidebar minimalism setting and persists it.
+func (s *ConfigStore) SetSidebarMinimalism(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().SidebarMinimalism = &enabled
+		return map[string]any{"options.tui.sidebar_minimalism": enabled}
+	})
+}
+
+// SetShowHypercredits sets the Hyper credits visibility setting and persists it.
+func (s *ConfigStore) SetShowHypercredits(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().ShowHypercredits = &enabled
+		return map[string]any{"options.tui.show_hypercredits": enabled}
+	})
+}
+
+// SetSymbolHints sets the symbol hints setting and persists it.
+func (s *ConfigStore) SetSymbolHints(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().SymbolHints = &enabled
+		return map[string]any{"options.tui.symbol_hints": enabled}
+	})
+}
+
 // SetTransparentBackground sets the transparent background setting and persists it.
 func (s *ConfigStore) SetTransparentBackground(scope Scope, enabled bool) error {
 	return s.update(scope, func(c *Config) map[string]any {

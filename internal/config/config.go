@@ -4,11 +4,9 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -328,6 +326,18 @@ type TUIOptions struct {
 	Scrollbar   string      `json:"scrollbar,omitempty" jsonschema:"description=Chat scrollbar visibility,enum=default,enum=always,enum=never,default=default"`
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
+	// SidebarMinimalism hides disabled MCPs and LSPs that never
+	// activated from the sidebar. The nil pointer and the unset field
+	// both mean enabled, the default.
+	SidebarMinimalism *bool `json:"sidebar_minimalism,omitempty" jsonschema:"description=Hide disabled MCPs and LSPs that never activated in the sidebar,default=true"`
+	// ShowHypercredits shows the Hyper credits balance in the model
+	// info stack and the compact header. The nil pointer and the unset
+	// field both mean shown, the default.
+	ShowHypercredits *bool `json:"show_hypercredits,omitempty" jsonschema:"description=Show the Hyper credits balance in the TUI,default=true"`
+	// SymbolHints renders key hints with the symbol style instead of
+	// the spelled-out upstream form. The nil pointer and the unset
+	// field both mean symbols, the default.
+	SymbolHints *bool `json:"symbol_hints,omitempty" jsonschema:"description=Show key hints as keyboard symbols,default=true"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -335,6 +345,35 @@ type TUIOptions struct {
 // without unwrapping either.
 func (t *TUIOptions) IsTransparent() bool {
 	return t != nil && t.Transparent != nil && *t.Transparent
+}
+
+// IsSidebarMinimalism reports whether the sidebar hides disabled MCPs and
+// never-activated LSPs. The nil receiver and the unset pointer both mean
+// enabled, so callers can ask without unwrapping either.
+func (t *TUIOptions) IsSidebarMinimalism() bool {
+	return t == nil || t.SidebarMinimalism == nil || *t.SidebarMinimalism
+}
+
+// IsShowHypercredits reports whether the TUI shows the Hyper credits
+// balance. The nil receiver and the unset pointer both mean shown, so
+// callers can ask without unwrapping either.
+func (t *TUIOptions) IsShowHypercredits() bool {
+	return t == nil || t.ShowHypercredits == nil || *t.ShowHypercredits
+}
+
+// IsSymbolHints reports whether key hints render with the symbol style.
+// The nil receiver and the unset pointer both mean symbols, so callers
+// can ask without unwrapping either.
+func (t *TUIOptions) IsSymbolHints() bool {
+	return t == nil || t.SymbolHints == nil || *t.SymbolHints
+}
+
+// IsSymbolHintsSafe reports the symbol hints setting through a Config
+// that may carry nil Options. The pure getter family stays nil-safe at
+// the TUIOptions level; dialogs read through this wrapper because
+// their test stubs build bare Config values.
+func (c *Config) IsSymbolHintsSafe() bool {
+	return c != nil && c.Options != nil && c.Options.TUI.IsSymbolHints()
 }
 
 // UnmarshalJSON tolerates the legacy string form of the "theme" field.
@@ -461,6 +500,12 @@ type Options struct {
 	Debug                bool        `json:"debug,omitempty" jsonschema:"description=Enable debug logging,default=false"`
 	DebugLSP             bool        `json:"debug_lsp,omitempty" jsonschema:"description=Enable debug logging for LSP servers,default=false"`
 	DisableAutoSummarize bool        `json:"disable_auto_summarize,omitempty" jsonschema:"description=Disable automatic conversation summarization,default=false"`
+	// PinentryIntegrated renders GPG passphrase/PIN prompts as a native
+	// Crush dialog (loopback pinentry) instead of handing the terminal
+	// over to an external pinentry program. No GPG or git configuration
+	// is modified: the redirect only applies to processes Crush spawns.
+	PinentryIntegrated   *bool `json:"pinentry_integrated,omitempty" jsonschema:"description=Render GPG passphrase prompts as a native Crush dialog instead of an external pinentry program. Works with file-based keys and security keys and never modifies GPG or git configuration.,default=true"`
+	PinentryCacheTimeout *int  `json:"pinentry_cache_timeout,omitempty" jsonschema:"description=Seconds Crush keeps an entered GPG passphrase in memory so repeated signing operations do not re-prompt. 0 (the default) disables it; gpg-agent's own cache applies regardless.,default=0,example=300"`
 	// DataDirectory is where Crush keeps per-project state such as
 	// the SQLite database and workspace overrides. Relative paths are
 	// resolved against the working directory; absolute paths are used
@@ -478,12 +523,6 @@ type Options struct {
 	DisabledSkills            []string     `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 	RequestTimeout            *int         `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity between tokens\\, so slow but active streams are never killed; the wait for the first token gets at least five minutes for prompt prefill. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
 	MaxBackgroundJobs         *int         `json:"max_background_jobs,omitempty" jsonschema:"description=How many background shell jobs may run at once. Jobs that have finished never count against it. 0 or negative restores the default.,default=50,example=10,example=200"`
-	// PinentryIntegrated renders GPG passphrase/PIN prompts as a native
-	// Crush dialog (loopback pinentry) instead of handing the terminal
-	// over to an external pinentry program. No GPG or git configuration
-	// is modified: the redirect only applies to processes Crush spawns.
-	PinentryIntegrated   *bool `json:"pinentry_integrated,omitempty" jsonschema:"description=Render GPG passphrase prompts as a native Crush dialog instead of an external pinentry program. Works with file-based keys and security keys and never modifies GPG or git configuration.,default=true"`
-	PinentryCacheTimeout *int  `json:"pinentry_cache_timeout,omitempty" jsonschema:"description=Seconds Crush keeps an entered GPG passphrase in memory so repeated signing operations do not re-prompt. 0 (the default) disables it; gpg-agent's own cache applies regardless.,default=0,example=300"`
 }
 
 // DefaultMaxBackgroundJobs is how many background shell jobs may run at once
@@ -519,7 +558,6 @@ func (o *Options) GetRequestTimeout() time.Duration {
 	}
 	return time.Duration(*o.RequestTimeout) * time.Second
 }
-
 // GetPinentryIntegrated reports whether the integrated pinentry is
 // enabled. Enabled by default; callers use it to decide whether to
 // prompt in-app or let the external pinentry handle credentials.
@@ -541,6 +579,7 @@ func (o *Options) GetPinentryCacheTimeout() time.Duration {
 	}
 	return time.Duration(*o.PinentryCacheTimeout) * time.Second
 }
+
 
 type MCPs map[string]MCPConfig
 
@@ -1209,52 +1248,36 @@ func (c *ProviderConfig) TestConnection(resolver VariableResolver) error {
 			return fmt.Errorf("invalid API key format for provider %s", c.ID)
 		}
 		return nil
-	case catwalk.InferenceProviderBedrock, catwalk.InferenceProviderBedrockEurope:
-		// NOTE: Bedrock has a `/foundation-models` endpoint that we could in
-		// theory use, but apparently the authorization is region-specific,
-		// so it's not so trivial.
-		if strings.HasPrefix(apiKey, "ABSK") { // Bedrock API keys
-			return nil
-		}
-		return errors.New("not a valid bedrock api key")
-	case catwalk.InferenceProviderVercel:
-		// NOTE: Vercel does not validate API keys on the `/models` endpoint.
-		if strings.HasPrefix(apiKey, "vck_") { // Vercel API keys
-			return nil
-		}
-		return errors.New("not a valid vercel api key")
-	case catwalk.InferenceProviderGemini:
-		baseURL, _ := resolver.ResolveValue(c.BaseURL)
-		baseURL = cmp.Or(baseURL, "https://generativelanguage.googleapis.com")
-		testURL = baseURL + "/v1beta/models?key=" + url.QueryEscape(apiKey)
 	}
 
-	if testURL == "" {
-		// The models API endpoint is determined by the provider type, which
-		// describes the API format the provider speaks.
-		switch c.Type {
-		case catwalk.TypeMessages:
-			baseURL, _ := resolver.ResolveValue(c.BaseURL)
-			baseURL = cmp.Or(baseURL, "https://api.anthropic.com")
+	switch c.Type {
+	case catwalk.TypeCompletions, catwalk.TypeResponses:
+		baseURL, _ := resolver.ResolveValue(c.BaseURL)
+		baseURL = cmp.Or(baseURL, "https://api.openai.com/v1")
 
-			testURL = baseURL + "/v1/models"
-
-			headers["x-api-key"] = apiKey
-			headers["anthropic-version"] = "2023-06-01"
+		switch providerID {
+		case catwalk.InferenceProviderOpenRouter:
+			testURL = baseURL + "/credits"
+		case catwalk.InferenceProviderOpenCodeGo:
+			testURL = strings.Replace(baseURL, "/go", "", 1) + "/models"
 		default:
-			// Completions, responses, and custom provider types all expose
-			// an OpenAI-style /models endpoint.
-			baseURL, _ := resolver.ResolveValue(c.BaseURL)
-			baseURL = cmp.Or(baseURL, "https://api.openai.com/v1")
-
-			if providerID == catwalk.InferenceProviderOpenRouter {
-				testURL = baseURL + "/credits"
-			} else {
-				testURL = baseURL + "/models"
-			}
-
-			headers["Authorization"] = "Bearer " + apiKey
+			testURL = baseURL + "/models"
 		}
+
+		headers["Authorization"] = "Bearer " + apiKey
+	case catwalk.TypeMessages:
+		baseURL, _ := resolver.ResolveValue(c.BaseURL)
+		baseURL = cmp.Or(baseURL, "https://api.anthropic.com/v1")
+
+		switch providerID {
+		case catwalk.InferenceKimiCoding:
+			testURL = baseURL + "/v1/models"
+		default:
+			testURL = baseURL + "/models"
+		}
+
+		headers["x-api-key"] = apiKey
+		headers["anthropic-version"] = "2023-06-01"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

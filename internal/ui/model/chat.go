@@ -489,7 +489,7 @@ func (m *Chat) AppendMessages(msgs ...chat.MessageItem) {
 func (m *Chat) LastPromptID() string {
 	for i := m.list.Len() - 1; i >= 0; i-- {
 		item, ok := m.list.ItemAt(i).(*chat.UserMessageItem)
-		if ok && item.ID() != chat.PendingUserID && item.Message().IsPrompt() {
+		if ok && item.ID() != chat.PendingUserID && item.Message().Role == "user" {
 			return item.ID()
 		}
 	}

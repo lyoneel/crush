@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -103,6 +104,83 @@ func (m *UI) loadSession(sessionID string) tea.Cmd {
 		}
 	}
 	return tea.Batch(load, m.reportCurrentSession(sessionID))
+}
+
+// sessionSwitched reports whether loading next is a session switch:
+// any first session counts as a switch, and loading the session that is
+// already displayed does not.
+func sessionSwitched(current, next *session.Session) bool {
+	return current == nil || current.ID != next.ID
+}
+
+// applyLoadedSession applies a loaded session to the UI: the session
+// reference, chat list, LSPs, prompt history, and pending bang command.
+func (m *UI) applyLoadedSession(msg loadSessionMsg) []tea.Cmd {
+	var cmds []tea.Cmd
+	if m.forceCompactMode {
+		m.isCompact = true
+	}
+	// Plan mode is scoped to the session it was enabled in: switching
+	// to another session falls back to code mode and drops any pending
+	// plan handoff. (Loading the session that was just created for the
+	// first plan-mode prompt is not a switch; the IDs match then.)
+	if m.session == nil || m.session.ID != msg.session.ID {
+		if cmd := m.resetPlanModeState(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// The turn outcome belongs to the session that produced it, so a
+		// switch drops it from the terminal status line.
+		m.turnOutcome = ""
+	}
+	m.setState(uiChat, m.focus)
+	m.session = msg.session
+	m.sidebarOffset = 0
+	m.sessionFiles = msg.files
+	// Session switch: the memoized busy state and queued prompts
+	// belong to the previous session. Drop them and re-fetch
+	// off-thread so the queue pill and esc behavior track the new
+	// session instead of a stale one.
+	m.invalidateBusyCaches()
+	m.invalidatePromptQueue()
+	m.promptQueue = 0
+	m.promptQueueItems = nil
+	m.promptQueueCheckedAt = time.Time{}
+	if cmd := m.dispatchBusyRefresh(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.dispatchPromptQueueRefresh(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	cmds = append(cmds, m.startLSPs(msg.lspFilePaths()))
+	msgs := msg.messages
+	if cmd := m.setSessionMessages(msgs); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.restoreModelFromSession(msgs); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if cmd := m.autoExpandPillsIfReasonable(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	// If a bang command was issued before the session finished
+	// loading, start it now that the chat list is stable.
+	if m.pendingBangCommand != "" {
+		cmds = append(cmds, m.runShellCommandInternal(m.pendingBangCommand, true))
+		m.pendingBangCommand = ""
+	}
+	if hasInProgressTodo(m.session.Todos) {
+		// only start spinner if there is an in-progress todo
+		if m.isAgentBusy() {
+			m.todoIsSpinning = true
+			cmds = append(cmds, m.todoSpinner.Tick)
+		}
+		m.updateLayoutAndSize()
+	}
+	// Reload prompt history for the new session.
+	m.historyReset()
+	cmds = append(cmds, m.loadPromptHistory())
+	m.updateLayoutAndSize()
+	return cmds
 }
 
 // reportCurrentSession returns a fire-and-forget tea.Cmd that

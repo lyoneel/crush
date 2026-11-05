@@ -42,6 +42,15 @@ type countingWorkspace struct {
 	mcpStates      map[string]mcp.ClientInfo
 	mcpPendingAuth []mcp.PendingAuthServer
 
+	// sidebarMinimalismCalls records SetSidebarMinimalism persistence calls.
+	sidebarMinimalismCalls []bool
+
+	// showHypercreditsCalls records SetShowHypercredits persistence calls.
+	showHypercreditsCalls []bool
+
+	// symbolHintsCalls records SetSymbolHints persistence calls.
+	symbolHintsCalls []bool
+
 	readyCalls      int
 	agentBusyCalls  int
 	queuedCalls     int
@@ -109,6 +118,21 @@ func (w *countingWorkspace) LSPGetStates() map[string]workspace.LSPClientInfo {
 func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCounts {
 	w.lspDiagCalls++
 	return w.lspDiags[name]
+}
+
+func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) error {
+	w.sidebarMinimalismCalls = append(w.sidebarMinimalismCalls, enabled)
+	return nil
+}
+
+func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
+	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
+	return nil
+}
+
+func (w *countingWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	w.symbolHintsCalls = append(w.symbolHintsCalls, enabled)
+	return nil
 }
 
 func (w *countingWorkspace) MCPGetStates() map[string]mcp.ClientInfo {
@@ -712,15 +736,17 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 
 	for range 10 {
 		require.NotNil(t, m.selectedLargeModel())
-		m.lspInfo(40, 5, true)
+		m.selectedSmallModel()
+		m.lspInfo(40, 5, true, false)
 		require.Equal(t, 3, m.lspErrorCount())
 	}
 
-	// modelInfo reaches provider config only through the memoized model;
-	// with the agent not ready it renders the empty state.
+	// modelInfo reaches provider config only through the memoized model
+	// and the cached workspace config; with the agent not ready it
+	// renders the empty state.
 	m.agentReady = false
 	for range 10 {
-		m.modelInfo(40)
+		m.modelInfo(40, false)
 	}
 
 	require.Zero(t, ws.syncProbes(), "render helpers must never probe the workspace")

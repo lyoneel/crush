@@ -136,7 +136,7 @@ type Coordinator interface {
 	UpdateModels(ctx context.Context) error
 	GenerateTitle(ctx context.Context, sessionID, prompt string)
 	// SetHostContext records what the host application has in view;
-	// each run from then on tells the model about it.
+	// HostContext reads it back for the next prompt.
 	SetHostContext(hc proto.HostContext)
 	HostContext() proto.HostContext
 }
@@ -166,6 +166,10 @@ type coordinator struct {
 	// models is shared by every agent; rebuildMu serializes rebuilds of it.
 	models    csync.Value[coordinatorModels]
 	rebuildMu sync.Mutex
+
+	// titles is shared by every agent built here, sub-agents included, so
+	// CancelAll on the current agent drains all title generation.
+	titles titleTracker
 
 	// awsRefresh shares one AWS SSO login among requests that need it.
 	awsRefresh singleflight.Group
@@ -198,13 +202,9 @@ type coordinator struct {
 	activeSkills []*skills.Skill // Post-filter: active skills only.
 	skillTracker *skills.Tracker
 
-	readyWg errgroup.Group
-
 	hostContext csync.Value[proto.HostContext]
 
-	// titles is shared by every agent built here, sub-agents included, so
-	// CancelAll on the current agent drains all title generation.
-	titles titleTracker
+	readyWg errgroup.Group
 }
 
 // CoordinatorOptions holds the dependencies for NewCoordinator. Using a
@@ -1119,7 +1119,7 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", slot, errModelNotSelected)
 	}
-	return c.buildModelFromSelection(ctx, modelCfg, isSubAgent)
+	return c.buildModelFromSelectionSlot(ctx, slot, modelCfg, isSubAgent)
 }
 
 // buildModelFromSelection builds the model for an explicit selection,
@@ -1128,6 +1128,10 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 // gets: provider construction, catalog resolution, request timeouts, and
 // the provider-specific wrappers.
 func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg config.SelectedModel, isSubAgent bool) (Model, error) {
+	return c.buildModelFromSelectionSlot(ctx, config.SelectedModelTypeLarge, modelCfg, isSubAgent)
+}
+
+func (c *coordinator) buildModelFromSelectionSlot(ctx context.Context, slot config.SelectedModelType, modelCfg config.SelectedModel, isSubAgent bool) (Model, error) {
 	providerCfg, ok := c.cfg.Config().Providers.Get(modelCfg.Provider)
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", modelCfg.Provider, errModelProviderNotConfigured)
@@ -1139,6 +1143,16 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 	catwalkModel := c.cfg.Config().GetModel(modelCfg.Provider, modelCfg.Model)
 	if catwalkModel == nil {
 		return Model{}, fmt.Errorf("%s %w", modelCfg.Model, errModelNotFound)
+	}
+
+	// Fork: enforce the lowest possible reasoning effort for the small
+	// model, so background calls stay cheap regardless of the selected
+	// effort. effectiveReasoningEffort prefers the model config effort,
+	// so the forced value wins without touching the persisted selection.
+	if slot == config.SelectedModelTypeSmall {
+		if effort := config.LowestReasoningEffort(catwalkModel); effort != "" {
+			modelCfg.ReasoningEffort = effort
+		}
 	}
 
 	provider, err := c.buildProvider(providerCfg, modelCfg, isSubAgent, catwalkModel.EffectiveType(providerCfg.Type))
@@ -1163,8 +1177,20 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 
 	// Hyper completions no longer report the hypercredit balance, so wrap
 	// the Hyper models to fetch it from /v1/credits on every request.
-	if modelCfg.Provider == hyper.Name {
+	// Gateway-served models with the Hyper/ id prefix consume the same
+	// balance, so they are wrapped too.
+	if hyper.IsCreditsModel(modelCfg.Provider, modelCfg.Model) {
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
+	}
+
+	// Fork: enforce the lowest possible reasoning effort for the small
+	// model, so background calls stay cheap regardless of the selected
+	// effort. effectiveReasoningEffort prefers the model config effort,
+	// so the forced value wins without touching the persisted selection.
+	if slot == config.SelectedModelTypeSmall {
+		if effort := config.LowestReasoningEffort(catwalkModel); effort != "" {
+			modelCfg.ReasoningEffort = effort
+		}
 	}
 
 	return Model{
@@ -1570,10 +1596,13 @@ func (c *coordinator) CancelAll() {
 func (c *coordinator) ClearQueue(sessionID string) {
 	c.currentAgent().ClearQueue(sessionID)
 }
-
 func (c *coordinator) AddNote(sessionID, text string) {
 	c.currentAgent().AddNote(sessionID, text)
 }
+
+func (c *coordinator) SetHostContext(hc proto.HostContext) { c.hostContext.Set(hc) }
+
+func (c *coordinator) HostContext() proto.HostContext { return c.hostContext.Get() }
 
 func (c *coordinator) IsBusy() bool {
 	return c.currentAgent().IsBusy()
@@ -1590,10 +1619,6 @@ func (c *coordinator) IsSessionBusy(sessionID string) bool {
 func (c *coordinator) ListSettledMessages(ctx context.Context, sessionID string) ([]message.Message, error) {
 	return c.currentAgent().ListSettledMessages(ctx, sessionID)
 }
-
-func (c *coordinator) SetHostContext(hc proto.HostContext) { c.hostContext.Set(hc) }
-
-func (c *coordinator) HostContext() proto.HostContext { return c.hostContext.Get() }
 
 func (c *coordinator) Model() Model {
 	return c.currentAgent().Model()

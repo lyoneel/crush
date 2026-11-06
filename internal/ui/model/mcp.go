@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -190,17 +191,20 @@ func (m *UI) mcpInfo(width, maxItems int, isSection, sidebar bool) string {
 	return lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("%s\n\n%s", title, list))
 }
 
-// mcpCounts formats tool, prompt, and resource counts for display.
+// mcpCounts formats tool, prompt, and resource counts in the LSP
+// diagnostics shape, a letter glued to its count with space-separated
+// groups, colored like the disabled status text: T3 P1 R100. Zero
+// counts stay hidden.
 func mcpCounts(t *styles.Styles, counts mcp.Counts) string {
 	var parts []string
 	if counts.Tools > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d tools", counts.Tools)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("T%d", counts.Tools)))
 	}
 	if counts.Prompts > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d prompts", counts.Prompts)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("P%d", counts.Prompts)))
 	}
 	if counts.Resources > 0 {
-		parts = append(parts, t.Resource.CapabilityCount.Render(fmt.Sprintf("%d resources", counts.Resources)))
+		parts = append(parts, t.Resource.StatusText.Render(fmt.Sprintf("R%d", counts.Resources)))
 	}
 	return strings.Join(parts, " ")
 }
@@ -208,6 +212,9 @@ func mcpCounts(t *styles.Styles, counts mcp.Counts) string {
 // mcpList renders a list of MCP clients with their status and counts,
 // truncating to maxItems if needed.
 func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) string {
+	if maxItems <= 0 {
+		return ""
+	}
 	var renderedMcps []string
 
 	for _, m := range mcps {
@@ -217,9 +224,9 @@ func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) strin
 		if m.Name == config.DockerMCPName {
 			title = "Docker MCP"
 		}
-		title = t.Resource.Name.Render(title)
 		var description string
 		var extraContent string
+		var titleColor color.Color
 
 		switch m.State {
 		case mcp.StateStarting:
@@ -246,21 +253,34 @@ func mcpList(t *styles.Styles, mcps []mcp.ClientInfo, width, maxItems int) strin
 			icon = t.Resource.NeedsAuthIcon.String()
 			description = t.Resource.StatusText.Render("needs authentication")
 		case mcp.StateDisabled:
+			// The disabled state speaks through the icon and the name
+			// color alone; no status word. The name passes unstyled so
+			// common.Status renders it once, in the disabled color.
 			icon = t.Resource.DisabledIcon.String()
-			description = t.Resource.StatusText.Render("disabled")
+			titleColor = t.Resource.StatusText.GetForeground()
 		default:
 			icon = t.Resource.OfflineIcon.String()
+		}
+		if titleColor == nil {
+			title = t.Resource.Name.Render(title)
 		}
 
 		renderedMcps = append(renderedMcps, common.Status(t, common.StatusOpts{
 			Icon:         icon,
 			Title:        title,
+			TitleColor:   titleColor,
 			Description:  description,
 			ExtraContent: extraContent,
 		}, width))
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, truncateRows(renderedMcps, maxItems, t.Resource.AdditionalText)...)
+	if len(renderedMcps) > maxItems {
+		visibleItems := renderedMcps[:maxItems-1]
+		remaining := len(renderedMcps) - maxItems
+		visibleItems = append(visibleItems, t.Resource.AdditionalText.Render(fmt.Sprintf("…and %d more", remaining)))
+		return lipgloss.JoinVertical(lipgloss.Left, visibleItems...)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, renderedMcps...)
 }
 
 // openMCPTogglesDialog opens the repository-scoped MCP toggles dialog.

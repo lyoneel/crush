@@ -29,7 +29,7 @@ func TestCommandsSidebarMinimalismItemWired(t *testing.T) {
 
 	s := commonDefaultStyles()
 	com := &common.Common{Styles: &s, Workspace: &configWorkspaceStub{cfg: &config.Config{}}}
-	c, err := NewCommands(com, "s1", true, false, false, nil, nil)
+	c, err := NewCommands(com, "s1", true, false, false, false, nil, nil)
 	require.NoError(t, err)
 	// The toggle items render only at a sidebar-capable width (the same
 	// guard as Toggle Sidebar); setCommandItems rebuilds from windowWidth.

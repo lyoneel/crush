@@ -755,28 +755,31 @@ func capLineWidths(s string, width int) string {
 // toolHeader builds the tool header line: "● ToolName params..."
 // When opts.ExpandedContent is true, long parameters wrap instead of truncating.
 func toolHeader(sty *styles.Styles, status ToolStatus, name string, width int, opts *ToolRenderOpts, params ...string) string {
-	prefix := toolHeaderPrefix(sty, status, name, opts)
+	nested := opts != nil && opts.Compact
+	icon := toolIcon(sty, status)
+	nameStyle := sty.Tool.NameNormal
+	if nested {
+		nameStyle = sty.Tool.NameNested
+	}
+	toolName := nameStyle.Render(name)
+	prefix := fmt.Sprintf("%s %s ", icon, toolName)
 	prefixWidth := lipgloss.Width(prefix)
-	paramsStr := toolParamList(sty, params, width-prefixWidth, opts)
+	remainingWidth := width - prefixWidth
+	paramsStr := toolParamList(sty, params, remainingWidth, opts)
 
 	// When expanded, toolParamList may return multiple lines. Indent
 	// continuation lines to align with the first line's param text.
-	if first, rest, found := strings.Cut(paramsStr, "\n"); found {
-		return prefix + first + "\n" + indentLines(rest, prefixWidth)
+	if strings.Contains(paramsStr, "\n") {
+		lines := strings.Split(paramsStr, "\n")
+		indent := strings.Repeat(" ", prefixWidth)
+		for i := 1; i < len(lines); i++ {
+			lines[i] = indent + lines[i]
+		}
+		return prefix + strings.Join(lines, "\n")
 	}
 	return prefix + paramsStr
 }
 
-// toolHeaderPrefix returns the styled "● ToolName " that leads a tool header.
-func toolHeaderPrefix(sty *styles.Styles, status ToolStatus, name string, opts *ToolRenderOpts) string {
-	nameStyle := sty.Tool.NameNormal
-	if opts != nil && opts.Compact {
-		nameStyle = sty.Tool.NameNested
-	}
-	return fmt.Sprintf("%s %s ", toolIcon(sty, status), nameStyle.Render(name))
-}
-
-// indentLines indents every line of s by n spaces.
 func indentLines(s string, n int) string {
 	indent := strings.Repeat(" ", n)
 	return indent + strings.ReplaceAll(s, "\n", "\n"+indent)

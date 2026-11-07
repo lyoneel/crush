@@ -170,6 +170,10 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 		indStyle = s.com.Styles.Status.ModeBannerYoloBadge
 		msgStyle = s.com.Styles.Status.ModeBannerYolo
 		indInset = badgeLeftInset
+	case util.InfoTypeCode:
+		indStyle = s.com.Styles.Status.ModeBannerCodeBadge
+		msgStyle = s.com.Styles.Status.ModeBannerCode
+		indInset = badgeLeftInset
 	case util.InfoTypeSysadmin:
 		indStyle = s.com.Styles.Status.ModeBannerSysadminBadge
 		msgStyle = s.com.Styles.Status.ModeBannerSysadmin

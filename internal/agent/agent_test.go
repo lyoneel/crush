@@ -47,7 +47,7 @@ func setupAgent(t *testing.T, pair modelPair) (SessionAgent, fakeEnv) {
 	env := testEnv(t)
 
 	createSimpleGoProject(t, env.workingDir)
-	agent, err := coderAgent(r, env, large, small)
+	agent, err := coderAgent(t, r, env, large, small)
 	require.NoError(t, err)
 	return agent, env
 }

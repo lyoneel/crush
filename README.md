@@ -35,7 +35,6 @@ each upstream release gets merged here.
 | [Visually stable status bar](#visually-stable-status-bar) | [stable] | A badge in every mode; no status bar movement on change |
 | [Small model effort](#small-model-effort) | [beta] | The small model forced to its lowest reasoning effort |
 | [Symbol key hints](#symbol-key-hints) | [beta] | Keyboard-symbol hints with a toggle back to upstream spellings |
-| [User lifecycle hooks](#user-lifecycle-hooks) | [work-in-progress] | Scripts at session events, per-hook async, blocking pre-events |
 
 ### Hypercredit balance for gateway-served Hyper models [stable]
 
@@ -131,53 +130,6 @@ to the upstream spellings (persisted, symbols by default). Symbols
 read faster once learned, while the canonical spellings match
 upstream documentation and muscle memory; each user switches per
 taste.
-
-### User lifecycle hooks [work-in-progress]
-
-Shell-level automation tied to session events, without keeping a
-fork of the agent logic. Hooks register per event in the agent
-config; each one is a command with a name and a timeout (default 30
-seconds).
-
-Every payload on stdin carries the fields below; the event table
-then lists the extra fields each event adds. The context usage
-snapshot travels in both the payload and the environment so hook
-scripts can react, warn, or block on how full the serving model's
-window is; `context_window` is 0 when the model publishes no window
-(treat 0 as unknown), and `estimated_usage` says whether the token
-counters are estimates. Model discovery through the gateway
-parses the `metadata` block on the `/models` response (context
-window, max output tokens, reasoning capabilities, pricing) so
-discovered models carry real values for this snapshot, the UI, and
-the cost math; user-declared models in the config still override
-discovery.
-
-| Field | Contains |
-|-------|----------|
-| `event` | The event name, for example `PrePrompt` |
-| `session_id` | The session identifier string, not the session body |
-| `cwd` | The working directory the hook runs in |
-| `context_usage` | `model_id`, `context_window`, `estimated_usage`; omitted when no snapshot is available |
-
-NOTES:
-
-- The environment carries the same data as variables:
-  `CRUSH_SESSION_ID`, `CRUSH_MODEL_ID`, `CRUSH_CONTEXT_WINDOW`,
-  `CRUSH_ESTIMATED_USAGE`, plus the event-specific ones.
-- Where the event table says `session` as a field, that is the
-  session snapshot object (`id`, `title`, `message_count`,
-  `prompt_tokens`, `completion_tokens`, `cost`, `updated_at`), not
-  the identifier string.
-
-| Event | Sync/Async | Can block | Matcher | Extra stdin fields |
-|-------|------------|-----------|---------|--------------------|
-| `PreToolUse` | both, `async: true` for fire-and-forget | yes — exit 2 blocks the tool call, exit 49 halts the turn; can rewrite the input | regex on the tool name, empty matches all | `tool_name`, `tool_input` |
-| `PostToolUse` | both | no | regex on the tool name, empty matches all | `tool_name`, `tool_input`, `tool_output` |
-| `PrePrompt` | both | yes | none | `prompt` |
-| `PostPrompt` | both | no | none | `prompt`, `session` |
-| `PostResponse` | both | no | none | `response`, `session` |
-| `PreSession` | both | no | none | `prompt`, `session` |
-| `PreSessionSwitch` | both | yes | none | `previous_session` (null when leaving a first session), `new_session` |
 
 The rest of this README is the upstream README, unmodified.
 

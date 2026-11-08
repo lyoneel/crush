@@ -643,6 +643,13 @@ func (w *ClientWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) 
 	return w.SetConfigField(scope, "options.tui.show_hypercredits", enabled)
 }
 
+func (w *ClientWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
+	// The generic config/set endpoint publishes a config-changed event
+	// and the store's typed mutator state reloads from it, so no
+	// dedicated endpoint is needed.
+	return w.SetConfigField(scope, "options.tui.symbol_hints", enabled)
+}
+
 func (w *ClientWorkspace) SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error {
 	err := w.client.SetProviderAPIKey(context.Background(), w.workspaceID(), scope, providerID, apiKey)
 	if err == nil {

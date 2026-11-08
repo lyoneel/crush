@@ -203,7 +203,7 @@ func (n *Notifications) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 
 	listView := t.Dialog.List.Height(n.list.Height()).Render(n.list.Render())
 	rc.AddPart(listView)
-	rc.Help = renderDialogHelp(t, &n.help, n, innerWidth)
+	rc.Help = renderDialogHelp(t, &n.help, n, innerWidth, n.com.Config().IsSymbolHintsSafe())
 
 	view := rc.Render()
 

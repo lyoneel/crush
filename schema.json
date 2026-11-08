@@ -114,7 +114,7 @@
             "type": "array"
           },
           "type": "object",
-          "description": "User-defined shell commands that fire on hook events (PreToolUse"
+          "description": "User-defined shell commands that fire on hook events (e.g. PreToolUse)"
         },
         "env": {
           "additionalProperties": {
@@ -161,11 +161,6 @@
           "type": "integer",
           "description": "Timeout in seconds for the hook command",
           "default": 30
-        },
-        "async": {
-          "type": "boolean",
-          "description": "Run this hook fire-and-forget instead of blocking the turn or tool call",
-          "default": false
         }
       },
       "additionalProperties": false,
@@ -1039,6 +1034,11 @@
         "show_hypercredits": {
           "type": "boolean",
           "description": "Show the Hyper credits balance in the TUI",
+          "default": true
+        },
+        "symbol_hints": {
+          "type": "boolean",
+          "description": "Show key hints as keyboard symbols",
           "default": true
         }
       },

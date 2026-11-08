@@ -589,6 +589,14 @@ func (s *ConfigStore) SetTransparentBackground(scope Scope, enabled bool) error 
 	})
 }
 
+// SetSymbolHints sets the symbol hints setting and persists it.
+func (s *ConfigStore) SetSymbolHints(scope Scope, enabled bool) error {
+	return s.update(scope, func(c *Config) map[string]any {
+		c.ensureTUI().SymbolHints = &enabled
+		return map[string]any{"options.tui.symbol_hints": enabled}
+	})
+}
+
 // SetProviderAPIKey sets the API key for a provider and persists it.
 // The OpenAI provider holds exactly one credential: storing a ChatGPT
 // token removes a previously entered API key, and storing an API key

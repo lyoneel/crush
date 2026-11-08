@@ -156,7 +156,7 @@ func (m *AWSSSO) dialogContent() string {
 	elements := []string{
 		m.headerContent(),
 		m.innerDialogContent(),
-		renderDialogHelp(t, &m.help, m, innerWidth),
+		renderDialogHelp(t, &m.help, m, innerWidth, m.com.Config().IsSymbolHintsSafe()),
 	}
 	return strings.Join(elements, "\n")
 }

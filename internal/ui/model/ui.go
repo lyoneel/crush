@@ -279,6 +279,10 @@ type UI struct {
 	// by setInputMode is still in flight; sending is blocked meanwhile.
 	modeSwitching bool
 
+	// symbolHints tracks whether key hints render with the symbol style
+	// (the Toggle Symbol Hints command)
+	symbolHints bool
+
 	keyMap KeyMap
 	keyenh tea.KeyboardEnhancementsMsg
 
@@ -639,6 +643,11 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// display, so the kill-switch follows the toggle.
 	ui.showHyperCredits = com.Config().Options.TUI.IsShowHypercredits()
 	hyper.SetDisplayEnabled(ui.showHyperCredits)
+	// Initialize the symbol hints style from config (nil-safe; absent
+	// key means symbols). The status bar holds the translating keymap
+	// wrapper when the style is on.
+	ui.symbolHints = com.Config().Options.TUI.IsSymbolHints()
+	status.SetSymbolHints(ui.symbolHints, ui)
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
@@ -2374,6 +2383,9 @@ func (m *UI) handleDialogAction(action dialog.Action) tea.Cmd {
 			cmds = append(cmds, util.CmdHandler(util.NewInfoMsg("Hypercredits "+status)))
 		}
 		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionToggleSymbolHints:
+		cmds = append(cmds, m.toggleSymbolHints())
+		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionTogglePills:
 		if cmd := m.togglePillsExpanded(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -3065,14 +3077,21 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, msg.ModelType, msg.Model); err != nil {
 		cmds = append(cmds, util.ReportError(err))
 	} else {
-		if msg.ModelType == config.SelectedModelTypeLarge {
+		if msg.ModelType == config.SelectedModelTypeLarge || msg.ApplyBoth {
 			// Swap the theme live based on the newly selected large
 			// model's provider. Skipped when the provider resolves to
 			// the already-active theme, which avoids a full markdown
 			// re-render of the transcript on every selection.
 			m.applyThemeForProvider(providerID)
 		}
-		if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
+		if msg.ApplyBoth {
+			// Shift+confirm applies the chosen model to both task
+			// sizes, so the small model no longer falls back to a
+			// provider default.
+			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, msg.Model); err != nil {
+				cmds = append(cmds, util.ReportError(err))
+			}
+		} else if _, ok := cfg.Models[config.SelectedModelTypeSmall]; !ok {
 			// Ensure small model is set is unset.
 			smallModel := m.com.Workspace.GetDefaultSmallModel(providerID)
 			if err := m.com.Workspace.UpdatePreferredModel(config.ScopeGlobal, config.SelectedModelTypeSmall, smallModel); err != nil {
@@ -3094,6 +3113,9 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 			modelName = catwalkModel.Name
 		}
 		modelMsg := fmt.Sprintf("%s model changed to %s", modelType, modelName)
+		if msg.ApplyBoth {
+			modelMsg = fmt.Sprintf("Large and small models changed to %s", modelName)
+		}
 
 		return util.NewInfoMsg(modelMsg)
 	}))
@@ -4003,17 +4025,26 @@ func (m *UI) ShortHelp() []key.Binding {
 	var binds []key.Binding
 	k := &m.keyMap
 
-	// When an inline editor is active, show its help.
+	// When an inline editor is active, show its help. The symbol style
+	// applies through the translation; when symbols are off the
+	// bindings render canonically.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
+			if m.symbolHints {
+				return common.SymbolBindings(m.activeInline.ShortHelp())
+			}
 			return m.activeInline.ShortHelp()
 		}
-		return []key.Binding{
+		binds := []key.Binding{
 			m.inlineFocusHelp(),
 			k.Chat.UpDown,
 			k.Chat.PageUp,
 			k.Chat.PageDown,
 		}
+		if m.symbolHints {
+			return common.SymbolBindings(binds)
+		}
+		return binds
 	}
 
 	tab := k.Tab
@@ -4039,7 +4070,7 @@ func (m *UI) ShortHelp() []key.Binding {
 
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4108,7 +4139,11 @@ func (m *UI) FullHelp() [][]key.Binding {
 	// When an inline editor is active, show its help.
 	if m.activeInline != nil {
 		if m.focus == uiFocusEditor {
-			return [][]key.Binding{m.activeInline.ShortHelp()}
+			binds := [][]key.Binding{m.activeInline.ShortHelp()}
+			if m.symbolHints {
+				return [][]key.Binding{common.SymbolBindings(binds[0])}
+			}
+			return binds
 		}
 		return [][]key.Binding{
 			{m.inlineFocusHelp()},
@@ -4160,7 +4195,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 		tab := k.Tab
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4363,6 +4398,21 @@ func (m *UI) attachmentsLimitReached() bool {
 }
 
 // toggleCompactMode toggles compact mode between uiChat and uiChatCompact states.
+// toggleSymbolHints flips the symbol hints style, persists it, and
+// reports where it landed.
+func (m *UI) toggleSymbolHints() tea.Cmd {
+	m.symbolHints = !m.symbolHints
+	if err := m.com.Workspace.SetSymbolHints(config.ScopeGlobal, m.symbolHints); err != nil {
+		return util.ReportError(err)
+	}
+	status := "spelled out"
+	if m.symbolHints {
+		status = "symbolized"
+	}
+	m.status.SetSymbolHints(m.symbolHints, m)
+	return util.CmdHandler(util.NewInfoMsg("Symbol hints " + status))
+}
+
 func (m *UI) toggleCompactMode() tea.Cmd {
 	m.forceCompactMode = !m.forceCompactMode
 

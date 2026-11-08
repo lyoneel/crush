@@ -149,7 +149,7 @@ func (m *SSH) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	} else {
 		lines = append(lines, t.Dialog.InputPrompt.Render(m.input.View()))
 	}
-	lines = append(lines, renderDialogHelp(t, &m.help, m, contentWidth))
+	lines = append(lines, renderDialogHelp(t, &m.help, m, contentWidth, m.com.Config().IsSymbolHintsSafe()))
 
 	view := t.Dialog.View.Width(m.width).Render(strings.Join(lines, "\n"))
 	cur := InputCursor(t, m.input.Cursor())

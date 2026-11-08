@@ -714,6 +714,7 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 		require.NotNil(t, m.selectedLargeModel())
 		m.selectedSmallModel()
 		m.lspInfo(40, 5, true)
+		m.lspInfo(40, 5, true, false)
 		require.Equal(t, 3, m.lspErrorCount())
 	}
 

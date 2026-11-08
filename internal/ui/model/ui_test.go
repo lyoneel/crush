@@ -978,10 +978,10 @@ func TestStatusModeBadge(t *testing.T) {
 		perm  permission.PermissionMode
 		badge string
 	}{
-		{"code", uiInputModeCode, permission.PermissionModeNormal, ""},
-		{"yolo", uiInputModeCode, permission.PermissionModeYolo, "YOLO MODE"},
+		{"code", uiInputModeCode, permission.PermissionModeNormal, "CODE"},
+		{"yolo", uiInputModeCode, permission.PermissionModeYolo, "YOLO"},
 		{"sysadmin", uiInputModeCode, permission.PermissionModeSysadmin, "SYSADMIN MODE"},
-		{"plan wins", uiInputModePlan, permission.PermissionModeSysadmin, "PLAN MODE"},
+		{"plan wins", uiInputModePlan, permission.PermissionModeSysadmin, "PLAN"},
 	} {
 		s.SetMode(tc.mode, tc.perm)
 		require.Contains(t, ansi.Strip(s.modeBadge()), tc.badge, tc.name)

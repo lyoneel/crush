@@ -86,8 +86,9 @@ func (s *Status) SetMode(mode uiInputMode, permMode permission.PermissionMode) {
 	s.permMode = permMode
 }
 
-// modeBadge renders the badge for the current mode, or an empty string in
-// the default coding mode.
+// modeBadge renders the badge for the current mode. Every mode gets a
+// badge: the standard coding mode shows CODE in the success green, so
+// the indicator area never changes shape between modes.
 func (s *Status) modeBadge() string {
 	t := s.com.Styles
 	// Mirror the editor prompt precedence: planning wins over YOLO, which
@@ -101,7 +102,7 @@ func (s *Status) modeBadge() string {
 	case permission.PermissionModeYolo:
 		return t.Status.ModeBadgeYolo.String()
 	}
-	return ""
+	return t.Status.ModeBadgeStd.String()
 }
 
 // SetWidth sets the width of the status bar and help view.
@@ -168,6 +169,10 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 	case util.InfoTypeYolo:
 		indStyle = s.com.Styles.Status.ModeBannerYoloBadge
 		msgStyle = s.com.Styles.Status.ModeBannerYolo
+		indInset = badgeLeftInset
+	case util.InfoTypeCode:
+		indStyle = s.com.Styles.Status.ModeBannerCodeBadge
+		msgStyle = s.com.Styles.Status.ModeBannerCode
 		indInset = badgeLeftInset
 	case util.InfoTypeSysadmin:
 		indStyle = s.com.Styles.Status.ModeBannerSysadminBadge

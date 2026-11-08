@@ -1246,8 +1246,9 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Dialog.Sessions.InfoFocused = lipgloss.NewStyle().Foreground(o.fgBase)
 
 	s.Status.Help = lipgloss.NewStyle().Padding(0, 1)
-	s.Status.ModeBadgePlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.primary).Padding(0, 1).Bold(true).SetString("PLAN MODE")
-	s.Status.ModeBadgeYolo = lipgloss.NewStyle().Foreground(badgeInk(o.busy, o.bgBase, o.fgBase)).Background(o.busy).Padding(0, 1).Bold(true).SetString("YOLO MODE")
+	s.Status.ModeBadgeStd = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.successMostSubtle).Padding(0, 1).Bold(true).SetString("CODE")
+	s.Status.ModeBadgePlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.primary).Padding(0, 1).Bold(true).SetString("PLAN")
+	s.Status.ModeBadgeYolo = lipgloss.NewStyle().Foreground(badgeInk(o.busy, o.bgBase, o.fgBase)).Background(o.busy).Padding(0, 1).Bold(true).SetString("YOLO")
 	s.Status.ModeBadgeSysadmin = lipgloss.NewStyle().Foreground(badgeInk(o.destructive, o.bgBase, o.fgBase)).Background(o.destructive).Padding(0, 1).Bold(true).SetString("SYSADMIN MODE")
 	s.Status.ModeBannerPlanBadge = s.Status.ModeBadgePlan
 	s.Status.ModeBannerPlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.planMoreSubtle).Padding(0, 1)
@@ -1255,6 +1256,8 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.ModeBannerYolo = lipgloss.NewStyle().Foreground(badgeInk(o.yolo, o.bgBase, o.fgBase)).Background(o.yolo).Padding(0, 1)
 	s.Status.ModeBannerSysadminBadge = s.Status.ModeBadgeSysadmin
 	s.Status.ModeBannerSysadmin = lipgloss.NewStyle().Foreground(badgeInk(o.destructiveSubtle, o.bgBase, o.fgBase)).Background(o.destructiveSubtle).Padding(0, 1)
+	s.Status.ModeBannerCodeBadge = s.Status.ModeBadgeStd
+	s.Status.ModeBannerCode = lipgloss.NewStyle().Foreground(o.bgMostVisible).Background(o.success).Padding(0, 1)
 	// The badges and toasts write a background role on a status fill;
 	// badgeInk swaps it for fgBase where that reads better (light themes).
 	s.Status.SuccessIndicator = base.Foreground(badgeInk(o.success, o.bgLessVisible, o.fgBase)).Background(o.success).Padding(0, 1).Bold(true).SetString("OKAY!")

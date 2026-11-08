@@ -5077,7 +5077,7 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 const (
 	planModeBannerMsg     = "Plan with Crush before generating any code."
 	yoloModeBannerMsg     = "System level commands stay blocked. The rest run unprompted."
-	codeModeBannerMsg = "Generate and edit freely."
+	codeModeBannerMsg     = "Generate and edit freely."
 	sysadminModeBannerMsg = "All commands are unblocked. Use wisely."
 )
 

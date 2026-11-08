@@ -50,19 +50,19 @@ type countingWorkspace struct {
 
 	// symbolHintsCalls records SetSymbolHints persistence calls.
 	symbolHintsCalls []bool
-	readyCalls      int
-	agentBusyCalls  int
-	queuedCalls     int
-	queueListCalls  int
-	permCalls       int
-	permSetCalls    int
-	clearQueueCalls int
-	cancelCalls     int
-	modelCalls      int
-	lspStateCalls   int
-	lspDiagCalls    int
-	mcpStateCalls   int
-	mcpPendingCalls int
+	readyCalls       int
+	agentBusyCalls   int
+	queuedCalls      int
+	queueListCalls   int
+	permCalls        int
+	permSetCalls     int
+	clearQueueCalls  int
+	cancelCalls      int
+	modelCalls       int
+	lspStateCalls    int
+	lspDiagCalls     int
+	mcpStateCalls    int
+	mcpPendingCalls  int
 }
 
 func (w *countingWorkspace) AgentIsReady() bool { w.readyCalls++; return w.ready }
@@ -126,6 +126,7 @@ func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled boo
 
 func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
 	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
+	return nil
 }
 
 func (w *countingWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
@@ -735,7 +736,6 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 	for range 10 {
 		require.NotNil(t, m.selectedLargeModel())
 		m.selectedSmallModel()
-		m.lspInfo(40, 5, true)
 		m.lspInfo(40, 5, true, false)
 		require.Equal(t, 3, m.lspErrorCount())
 	}

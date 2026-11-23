@@ -149,7 +149,7 @@ func (ed *ThemeEditor) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		listView = lipgloss.JoinHorizontal(lipgloss.Top, listView, scrollbar)
 	}
 	rc.AddPart(listView)
-	rc.Help = ed.help.View(ed)
+	rc.Help = ed.help.View(common.NewSymbolKeyMap(ed))
 
 	view := rc.Render()
 

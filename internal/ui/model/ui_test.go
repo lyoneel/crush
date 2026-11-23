@@ -499,7 +499,7 @@ func TestToggleSidebarKeyBinding(t *testing.T) {
 	for _, b := range u.ShortHelp() {
 		shortHelp = append(shortHelp, b.Help().Desc)
 	}
-	require.Contains(t, shortHelp, "toggle sidebar")
+	require.Contains(t, shortHelp, "sidebar")
 
 	var fullHelp []string
 	for _, row := range u.FullHelp() {
@@ -507,7 +507,7 @@ func TestToggleSidebarKeyBinding(t *testing.T) {
 			fullHelp = append(fullHelp, b.Help().Desc)
 		}
 	}
-	require.Contains(t, fullHelp, "toggle sidebar")
+	require.Contains(t, fullHelp, "sidebar")
 }
 
 func TestHandlePlanHandoff_NoMarkerNoInline(t *testing.T) {

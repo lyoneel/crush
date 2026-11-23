@@ -128,7 +128,7 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 			helpWidth -= lipgloss.Width(badge) + 1 + badgeLeftInset
 		}
 		s.help.SetWidth(max(0, helpWidth))
-		helpView := helpStyle.Render(s.help.View(s.helpKm))
+		helpView := helpStyle.Render(s.help.View(common.NewSymbolKeyMap(s.helpKm)))
 		if badge != "" {
 			// Indent the rows after the first so the expanded help lines up
 			// with the hints on the badge row.

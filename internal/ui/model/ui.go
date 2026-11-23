@@ -4087,7 +4087,7 @@ func (m *UI) ShortHelp() []key.Binding {
 
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}
@@ -4208,7 +4208,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 		tab := k.Tab
 		switch m.focus {
 		case uiFocusEditor:
-			tab.SetHelp("tab", "focus chat")
+			tab.SetHelp("tab", "chat")
 		default:
 			tab.SetHelp("tab", "focus editor")
 		}

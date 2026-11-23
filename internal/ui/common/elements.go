@@ -9,7 +9,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"charm.land/x/nerdfont"
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/home"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
@@ -103,7 +102,10 @@ func ModelInfo(t *styles.Styles, modelName, providerName, reasoningInfo string, 
 		parts = append(parts, lipgloss.NewStyle().PaddingLeft(2).Render(formattedInfo))
 	}
 
-	if providerName == hyper.DisplayName && hyperCredits != nil {
+	// Callers pass the balance only when it should show (see
+	// Common.ShowCredits), which also covers gateway-served models whose
+	// provider is not Hyper.
+	if hyperCredits != nil {
 		hcInfo := t.ModelInfo.HypercreditIcon.Render(styles.HypercreditIcon)
 		hcInfo += " "
 		hcInfo += t.ModelInfo.HypercreditText.Render(fmt.Sprintf("%s Hypercredits", FormatCredits(*hyperCredits)))

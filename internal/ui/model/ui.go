@@ -39,6 +39,7 @@ import (
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/event"
+	"github.com/charmbracelet/crush/internal/fork"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/home"
@@ -713,10 +714,14 @@ func (m *UI) Init() tea.Cmd {
 	if cmd := m.dispatchBusyRefresh(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
+	// Mirror the fork flags into process state (the credits fetch gate)
+	// before anything fetches.
+	fork.Sync(m.com.Config())
 	// The credits balance is shown from the first frame on, so fetch it
 	// right away and keep polling it while Crush sits idle. The poll runs
-	// for every provider: it is a no-op unless Hyper is selected.
-	if m.com.IsHyper() {
+	// for every provider: it is a no-op unless the selected model consumes
+	// credits and the display is not gated off.
+	if m.com.ShowCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 	// The branch is shown from the first frame on, so read it now and keep
@@ -1629,7 +1634,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// While a session runs every response refreshes the balance, so
 		// the poll only has to cover idle time. Re-arm it either way: the
 		// next poll may well land after the agent went idle again.
-		if m.com.IsHyper() && !m.isAgentBusy() {
+		if m.com.ShowCredits() && !m.isAgentBusy() {
 			cmds = append(cmds, m.fetchHyperCredits())
 		}
 		cmds = append(cmds, m.hyperCreditsTicker())
@@ -1664,6 +1669,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.handleHostThemeStyles(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case forkCommandDoneMsg:
+		cmds = append(cmds, m.handleForkCommandDone(msg))
 	case transparencyToggledMsg:
 		// The user's choice wins over a host theme's override.
 		m.isTransparent = msg.transparent
@@ -2355,6 +2362,8 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		if msg.Cmd != nil {
 			cmds = append(cmds, msg.Cmd)
 		}
+	case dialog.ActionRunForkCommand:
+		cmds = append(cmds, m.runForkCommand(msg))
 
 	// Session dialog messages.
 	case dialog.ActionSelectSession:
@@ -2830,7 +2839,7 @@ func (m *UI) refreshHyperAndRetrySelect(msg dialog.ActionSelectModel) tea.Cmd {
 // the stored value here is enough: until the first fetch lands the
 // balance is unknown and stays hidden.
 func (m *UI) updateHyperCredits() {
-	if !m.com.IsHyper() {
+	if !m.com.ShowCredits() {
 		return
 	}
 	m.hyperCredits = hyper.Balance()
@@ -3144,7 +3153,7 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		if cmd := m.dispatchBusyRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-	} else if m.com.IsHyper() {
+	} else if m.com.ShowCredits() {
 		cmds = append(cmds, m.fetchHyperCredits())
 	}
 
@@ -6221,7 +6230,7 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 		// the refresh for the turn's last response is only kicked off once
 		// its request finishes, so it may still be in flight here.
 		m.updateHyperCredits()
-		if m.com.IsHyper() {
+		if m.com.ShowCredits() {
 			cmds = append(cmds, m.fetchHyperCredits())
 		}
 	case notify.TypeAgentError:

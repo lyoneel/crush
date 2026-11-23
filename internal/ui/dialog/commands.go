@@ -579,6 +579,9 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	}
 	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}))
 
+	// Fork commands registered from their own branches (see FORK.md).
+	commands = append(commands, forkCommandItems(c.com.Styles, cfg)...)
+
 	// Add Channels command — opens the channels management dialog.
 	commands = append(commands, NewCommandItem(c.com.Styles, "channels", "Channels", "", ActionOpenDialog{DialogID: ChannelsID}))
 

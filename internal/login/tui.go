@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/charmbracelet/crush/internal/ui/common"
 	"strings"
 	"time"
 
@@ -398,7 +399,7 @@ func (m authModel) content() string {
 	}
 
 	b.WriteString("\n\n  ")
-	b.WriteString(m.help.View(m.keymap))
+	b.WriteString(m.help.View(common.NewSymbolKeyMap(m.keymap)))
 	b.WriteString("\n")
 	b.WriteString(trailingSpace)
 	return b.String()

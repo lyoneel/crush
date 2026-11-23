@@ -303,7 +303,7 @@ func (d *Channels) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		listView = lipgloss.JoinHorizontal(lipgloss.Top, listView, scrollbar)
 	}
 	rc.AddPart(listView)
-	rc.Help = d.help.View(d)
+	rc.Help = d.help.View(common.NewSymbolKeyMap(d))
 
 	view := rc.Render()
 	cur := d.Cursor()

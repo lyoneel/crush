@@ -2,6 +2,7 @@ package logout
 
 import (
 	"errors"
+	"github.com/charmbracelet/crush/internal/ui/common"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -129,7 +130,7 @@ func (m confirmModel) content() string {
 	b.WriteString(" ")
 	b.WriteString(renderButton("No", !m.yes))
 	b.WriteString("\n\n  ")
-	b.WriteString(m.help.View(m.keymap))
+	b.WriteString(m.help.View(common.NewSymbolKeyMap(m.keymap)))
 	b.WriteString("\n")
 	return b.String()
 }

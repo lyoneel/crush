@@ -2,6 +2,7 @@ package logout
 
 import (
 	"errors"
+	"github.com/charmbracelet/crush/internal/ui/common"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -136,7 +137,7 @@ func (m chooseModel) content() string {
 		}
 	}
 	b.WriteString("\n\n  ")
-	b.WriteString(m.help.View(m.keymap))
+	b.WriteString(m.help.View(common.NewSymbolKeyMap(m.keymap)))
 	b.WriteString("\n")
 	return b.String()
 }

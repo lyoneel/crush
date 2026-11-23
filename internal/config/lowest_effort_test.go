@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"charm.land/catwalk/v3/pkg/catwalk"
+	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,4 +30,25 @@ func TestLowestReasoningEffortCannotReason(t *testing.T) {
 	require.Empty(t, LowestReasoningEffort(&catwalk.Model{
 		Reasoning: catwalk.Reasoning{Thinking: catwalk.ThinkingNever, EffortLevels: []catwalk.EffortLevel{{Value: "low"}}},
 	}))
+}
+
+func TestSmallModelRunsAtLowestEffort(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{Providers: csync.NewMapFrom(map[string]ProviderConfig{
+		"p": {ID: "p", Models: []catwalk.Model{
+			{ID: "reasoner", Reasoning: catwalk.Reasoning{Thinking: catwalk.ThinkingToggleable, EffortLevels: []catwalk.EffortLevel{{Value: "low"}, {Value: "high"}}}},
+			{ID: "plain"},
+		}},
+	})}
+
+	sel := SelectedModel{Provider: "p", Model: "reasoner", ReasoningEffort: "high"}
+	require.Equal(t, "low", cfg.EffectiveSelection(SelectedModelTypeSmall, sel).ReasoningEffort)
+	require.Equal(t, "high", cfg.EffectiveSelection(SelectedModelTypeLarge, sel).ReasoningEffort, "the large model keeps its effort")
+
+	plain := SelectedModel{Provider: "p", Model: "plain", ReasoningEffort: "high"}
+	require.Equal(t, "high", cfg.EffectiveSelection(SelectedModelTypeSmall, plain).ReasoningEffort)
+
+	missing := SelectedModel{Provider: "p", Model: "missing", ReasoningEffort: "high"}
+	require.Equal(t, "high", cfg.EffectiveSelection(SelectedModelTypeSmall, missing).ReasoningEffort)
 }

@@ -1,5 +1,193 @@
 # Crush
 
+A personal fork of [Crush](https://github.com/charmbracelet/crush).
+It does not replace or deviate from the original project; I use it
+for my own needs, and I test changes to the program here. The fork
+adds features on top of upstream Crush; the upstream README below
+stays untouched.
+
+> [!WARNING]
+> Do not use this fork in production. If you build it, use a custom
+> binary name, for example `crushly`.
+
+## How the fork's branches work
+
+- **`main`**: the default branch. It holds upstream
+  [charmbracelet/crush](https://github.com/charmbracelet/crush) plus
+  every fork feature, each merged as a single squashed commit
+- **`upstream-main`**: a clean 1:1 copy of upstream, with nothing
+  custom on it
+- **`base/ly-fork-plumbing`**: the shared infrastructure every other
+  fork branch builds on (flag store, command registry, credits
+  registry, version stamp)
+- **`toggle/ly-*`**: the on/off switches; a toggle can gate several
+  features, and features never depend on it
+- **`feat/ly-*`**: one branch per feature, each keeping its granular
+  commits
+- **`docs/ly-fork-docs`**: this README and [FORK.md](FORK.md)
+
+Each time upstream moves, `upstream-main` gets updated, every fork
+branch gets rebased onto it, and `main` is brought level with a sync
+merge followed by one squashed commit per branch. `main` never gets
+force-pushed, so existing clones keep working. [FORK.md](FORK.md)
+describes the branch hierarchy, the design rules and the full sync
+cycle in detail.
+
+> [!NOTE]
+> Because of these repeated syncs, the history of `main` gets busy
+> over time: a sync merge plus a fresh squashed commit per feature on
+> every upstream update. For clean upstream history, look at
+> `upstream-main`; for a single feature and its step-by-step commits,
+> look at its own branch.
+
+## Fork features
+
+Each feature carries a state tag:
+
+- **[stable]**: in daily use, tested through real sessions; breaking
+  changes are unlikely
+- **[beta]**: works end to end, exercised less; the shape may still
+  change
+- **[work-in-progress]**: usable but rough; expect changes
+
+Changes that become stable enough go to the
+[upstream project](https://github.com/charmbracelet/crush), and
+each upstream release gets merged here.
+
+| Feature | Branch | State | Description |
+|---------|--------|-------|-------------|
+| [Hypercredit balance for gateway-served Hyper models](#hypercredit-balance-for-gateway-served-hyper-models) | `feat/ly-hypercredit-gateway-gate` | [stable] | Balance on gateway-served models, not just the direct provider |
+| [Small model display](#small-model-display) | `feat/ly-small-model-display` | [stable] | The small task model below the main one on the initial screen and sidebar |
+| [Small model effort](#small-model-effort) | `feat/ly-small-model-effort` | [beta] | The small model forced to its lowest reasoning effort |
+| [MCP capability counts in the LSP count style](#mcp-capability-counts-in-the-lsp-count-style) | `feat/ly-mcp-capability-counts` | [stable] | Per-server capability counts, matching the LSP display |
+| [Select-both model binding](#select-both-model-binding) | `feat/ly-apply-both` | [stable] | One confirmation applies the model to both task sizes |
+| [Minimalist sidebar](#minimalist-sidebar) | `feat/ly-minimalist-sidebar` | [stable] | Disabled and never-activated resources out of the sidebar |
+| [Compact sidebar toggle](#compact-sidebar-toggle) | `toggle/ly-sidebar-minimalism` | [stable] | Command that switches the minimalist sidebar behaviors |
+| [Hypercredits visibility toggle](#hypercredits-visibility-toggle) | `toggle/ly-credits-display` | [stable] | Command to hide the balance and stop its fetches |
+| [Visually stable status bar](#visually-stable-status-bar) | `feat/ly-code-mode-banner` | [stable] | A badge in every mode; no status bar movement on change |
+| [Symbol key hints](#symbol-key-hints) | `feat/ly-symbol-key-hints` | [beta] | Keyboard-symbol hints with a toggle back to upstream spellings |
+| [Gateway discovery metadata](#gateway-discovery-metadata) | `feat/ly-gateway-discovery-metadata` | [beta] | Real context window and capabilities for discovered gateway models |
+| [Gapless list items](#gapless-list-items) | `feat/ly-list-nogap` | [work-in-progress] | List items that can render without the gap row between them |
+
+All of them sit on `base/ly-fork-plumbing`, which also stamps fork
+builds with a `-ly-<N>` version suffix.
+
+### Hypercredit balance for gateway-served Hyper models [stable]
+
+Upstream shows the balance only on the direct `hyper` provider; the
+fork also shows it for models served through a gateway under
+`Hyper/` model ids or `/hyper/` path segments (matched in any letter
+case).
+
+Users who reach Hyper models through a home gateway get the
+credits feature on every model the gateway serves; without this
+change it shows only on the direct provider.
+
+### Small model display [stable]
+
+The small task model now displays on the initial screen and in the
+sidebar, in the same format as the main model, right below it.
+Titles and sub-agent work ride on that model; the user sees which
+one handles them at a glance.
+
+### Small model effort [beta]
+
+The small model exists for small tasks, so the fork forces its
+reasoning effort down to the lowest level the model offers,
+whatever the UI selected. When the small model display is merged
+too, it shows the enforced level, not the selection. The two
+features are separate branches: either one works without the other.
+
+### MCP capability counts in the LSP count style [stable]
+
+MCP servers advertise capabilities (tools, prompts, resources), and
+a server carrying several of them used to spread the sidebar entry
+over multiple lines. Each server now shows a compact count in the
+same style as the LSP section, which keeps the entry to one line in
+most cases and makes the two resource sections visually consistent.
+
+### Select-both model binding [stable]
+
+Model selection shows the large and the small task model in the
+same dialog, and before the small model display existed the small
+model was easy to leave stale without noticing. If you run both
+task sizes on the same model, or you want to
+make sure that the small model is set, `shift+enter` applies the
+chosen model to both task sizes in one action instead of
+selecting, confirming, and re-selecting through the same dialog
+twice.
+
+### Minimalist sidebar [stable]
+
+While the compact sidebar toggle is on:
+
+- Disabled MCPs are not displayed.
+- LSPs that are disabled, or were never activated, are not displayed.
+
+This reduces the visual charge in the sidebar, and the resources
+that matter come back the moment they start working.
+
+NOTE: the main initial screen is untouched by this feature; only
+the sidebar is affected.
+
+### Compact sidebar toggle [stable]
+
+The `Toggle Compact Sidebar` command switches every minimalist
+sidebar behavior on or off at once. The choice persists across
+restarts (on by default) under `options.tui.fork.sidebar_minimalism`.
+
+### Hypercredits visibility toggle [stable]
+
+The hypercredits balance display can be enabled or disabled on
+demand via the `Toggle Hypercredits` command. Hidden, the balance
+stays out of every surface it renders in and the display-only
+balance fetches stop; the fetch is wanted in the sidebar but not
+always in the header. The choice persists across restarts (shown by
+default) under `options.tui.fork.show_credits`.
+
+### Visually stable status bar [stable]
+
+The status bar now carries a `CODE` badge in the standard mode,
+alongside the existing `PLAN` and `YOLO` badges, and the code mode
+gets its own banner colors.
+
+The real problem is movement: the shift does not happen between
+plan and yolo (both carry a badge) but on entering or leaving the
+standard mode, which had no badge, and the status bar text moved
+horizontally on every such transition. With a badge in every mode
+the bar keeps the same shape all the time, and that movement is gone.
+
+The "MODE" word is gone from all of them: the UI already offers a
+good amount of visual cues, and the word only occupied space that
+other status bar elements can use.
+
+### Symbol key hints [beta]
+
+Key hints render as keyboard symbols (`ctl+c`, `⇧+⏎`, `↕`), with
+platform-aware Alt on macOS. `/` > `Toggle Symbol Hints` switches
+back to the upstream spellings (persisted under
+`options.tui.fork.symbol_hints`, symbols by default). Symbols read
+faster once learned, while the canonical spellings match upstream
+documentation and muscle memory; each user switches per taste.
+
+### Gateway discovery metadata [beta]
+
+Model discovery used to discard the metadata block several gateways
+attach to their `/v1/models` entries, so models listed only through
+discovery lost their real context window and capabilities. The
+context window, output cap, reasoning support, pricing and display
+name now map onto the catalog.
+
+### Gapless list items [work-in-progress]
+
+Infrastructure for the transcript list: two adjacent items that both
+opt in render without the gap row between them, so a tight cluster
+of related items reads as one block. Nothing opts in yet.
+
+The rest of this README is the upstream README, unmodified.
+
+---
+
 <p align="center">
     <a href="https://stuff.charm.sh/crush/charm-crush.png"><img width="450" alt="Charm Crush Logo" src="https://github.com/user-attachments/assets/cf8ca3ce-8b02-43f0-9d0f-5a331488da4b" /></a><br />
     <a href="https://github.com/charmbracelet/crush/releases"><img src="https://img.shields.io/github/release/charmbracelet/crush" alt="Latest Release"></a>

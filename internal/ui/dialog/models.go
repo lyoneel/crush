@@ -127,7 +127,7 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 		key.WithHelp("enter", "confirm"),
 	)
 	m.keyMap.SelectBoth = key.NewBinding(
-		key.WithKeys("shift+enter", "ctrl+j"),
+		key.WithKeys("shift+enter"),
 		key.WithHelp("shift+enter", "select both"),
 	)
 	m.keyMap.Edit = key.NewBinding(

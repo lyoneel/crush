@@ -111,7 +111,11 @@ func (m *UI) lspInfo(width, maxItems int, isSection bool) string {
 	})
 
 	var lsps []LSPInfo
+	hideInactive := m.minimalistSidebar(isSection)
 	for _, state := range states {
+		if hideInactive && !lspEverActive(state) {
+			continue
+		}
 		counts := m.lspDiagnostics[state.Name]
 		lsps = append(lsps, LSPInfo{LSPClientInfo: state, Diagnostics: map[protocol.DiagnosticSeverity]int{
 			protocol.SeverityError:       counts.Error,

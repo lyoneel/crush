@@ -24,6 +24,19 @@ type Item interface {
 	Version() uint64
 }
 
+// NoGapItem is an optional [Item] extension. When two adjacent items both
+// implement it and report NoGap, the list drops the inter-item gap row
+// between that pair; the gap to any other neighbor stays. This lets tight
+// clusters of related items render as one block while everything else
+// keeps its separation.
+type NoGapItem interface {
+	Item
+
+	// NoGap reports whether the item prefers no gap row between itself
+	// and an adjacent item that also reports NoGap.
+	NoGap() bool
+}
+
 // Versioned is a tiny embeddable helper that satisfies Item.Version()
 // and provides a Bump() method to call from every state-mutating
 // method. Items typically embed *Versioned alongside their other

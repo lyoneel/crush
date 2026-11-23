@@ -4,8 +4,9 @@
 //
 //   - a command registry for palette entries (RegisterCommand)
 //   - helpers over the options.tui.fork flag store (SetFlag, ToggleFlag)
-//   - the credits display gate (RegisterCreditsDisplayGate) and the sync
-//     step that mirrors flags into process state (Sync)
+//   - the credits display gate (RegisterCreditsDisplayGate)
+//   - the sync step that mirrors flags into process state (Sync,
+//     RegisterSyncHook)
 //
 // See FORK.md at the repository root for the branch model.
 package fork

@@ -3,7 +3,6 @@ package fork
 import (
 	"sync"
 
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/config"
 )
 
@@ -38,12 +37,4 @@ func CreditsDisplayEnabled(cfg *config.Config) bool {
 		}
 	}
 	return true
-}
-
-// Sync mirrors the fork flags into process state that cannot read the
-// config on its own. The UI calls it at startup and after every fork
-// command. Today it drives the credits fetch gate: the balance only feeds
-// the display, so a hidden display stops every fetch.
-func Sync(cfg *config.Config) {
-	hyper.SetCreditsFetchEnabled(CreditsDisplayEnabled(cfg))
 }

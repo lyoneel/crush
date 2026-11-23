@@ -135,3 +135,30 @@ func TestCreditsDisplayGateAndSync(t *testing.T) {
 	Sync(cfg)
 	require.False(t, hyper.CreditsFetchEnabled())
 }
+
+func TestSyncRunsHooksInOrder(t *testing.T) {
+	syncHooksMu.Lock()
+	saved := syncHooks
+	syncHooks = nil
+	syncHooksMu.Unlock()
+	t.Cleanup(func() {
+		syncHooksMu.Lock()
+		syncHooks = saved
+		syncHooksMu.Unlock()
+	})
+
+	var got []string
+	RegisterSyncHook(nil)
+	RegisterSyncHook(func(cfg *config.Config) { got = append(got, "a"+boolString(cfg.ForkFlag("x", false))) })
+	RegisterSyncHook(func(*config.Config) { got = append(got, "b") })
+
+	Sync(&config.Config{Options: &config.Options{TUI: &config.TUIOptions{Fork: map[string]bool{"x": true}}}})
+	require.Equal(t, []string{"atrue", "b"}, got)
+}
+
+func boolString(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}

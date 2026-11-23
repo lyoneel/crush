@@ -2,7 +2,6 @@ package model
 
 import (
 	"cmp"
-	"fmt"
 	"image"
 	"strings"
 
@@ -11,41 +10,57 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/logo"
+	"github.com/charmbracelet/crush/internal/workspace"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/ultraviolet/layout"
 )
 
-// modelInfo renders the current model information including reasoning
-// settings and context usage/cost for the sidebar.
-func (m *UI) modelInfo(width int) string {
-	model := m.selectedLargeModel()
-	reasoningInfo := ""
+// selectedSmallModel returns the small model as it runs, from the live
+// config: the persisted selection after any selection hooks (so a forced
+// effort shows as sent). Unlike the large model it needs no agent probe.
+func (m *UI) selectedSmallModel() *workspace.AgentModel {
+	cfg := m.com.Config()
+	if cfg == nil {
+		return nil
+	}
+	sel, ok := cfg.Models[config.SelectedModelTypeSmall]
+	if !ok {
+		return nil
+	}
+	sel = cfg.EffectiveSelection(config.SelectedModelTypeSmall, sel)
+	catwalkModel := cfg.GetModel(sel.Provider, sel.Model)
+	if catwalkModel == nil {
+		return nil
+	}
+	return &workspace.AgentModel{CatwalkCfg: *catwalkModel, ModelCfg: sel}
+}
+
+// modelInfoLine renders one model information block in the shared
+// format. usage controls the context and cost summary, which only
+// applies to the model the session usage is tracked against.
+func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage, smallModel bool) string {
+	effortInfo := ""
 	providerName := ""
 
-	if model != nil {
-		// Get provider name first
-		providerConfig, ok := m.com.Config().Providers.Get(model.ModelCfg.Provider)
-		if ok {
-			providerName = providerConfig.Name
+	if providerConfig, ok := m.com.Config().Providers.Get(model.ModelCfg.Provider); ok {
+		providerName = providerConfig.Name
 
-			// Only check reasoning if model can reason
-			if model.CatwalkCfg.CanReason() {
-				if len(model.CatwalkCfg.Reasoning.EffortLevels) == 0 {
-					if model.ModelCfg.Think {
-						reasoningInfo = "Thinking On"
-					} else {
-						reasoningInfo = "Thinking Off"
-					}
+		// Only show the effort inline if the model can reason.
+		if model.CatwalkCfg.CanReason() {
+			if len(model.CatwalkCfg.Reasoning.EffortLevels) == 0 {
+				if model.ModelCfg.Think {
+					effortInfo = "Thinking On"
 				} else {
-					reasoningEffort := cmp.Or(model.ModelCfg.ReasoningEffort, model.CatwalkCfg.Reasoning.DefaultEffortLevel)
-					reasoningInfo = fmt.Sprintf("Reasoning %s", common.FormatReasoningEffort(reasoningEffort))
+					effortInfo = "Thinking Off"
 				}
+			} else {
+				effortInfo = common.FormatReasoningEffort(cmp.Or(model.ModelCfg.ReasoningEffort, model.CatwalkCfg.Reasoning.DefaultEffortLevel))
 			}
 		}
 	}
 
 	var modelContext *common.ModelContextInfo
-	if model != nil && m.session != nil {
+	if usage && m.session != nil {
 		modelContext = &common.ModelContextInfo{
 			ContextUsed:    m.session.CompletionTokens + m.session.PromptTokens,
 			Cost:           m.session.Cost,
@@ -53,11 +68,40 @@ func (m *UI) modelInfo(width int) string {
 			EstimatedUsage: m.session.EstimatedUsage,
 		}
 	}
-	var modelName string
-	if model != nil {
-		modelName = model.CatwalkCfg.Name
+
+	return common.ModelInfo(m.com.Styles, model.CatwalkCfg.Name, providerName, effortInfo, modelContext, width, nil, smallModel)
+}
+
+// modelInfo renders the credits balance first, then the main model with
+// its inline effort and context usage/cost, and the small model in the
+// same format on the line below. With the sidebar layout the context and
+// cost summary moves below the small model; the landing view keeps it
+// attached to the main model line.
+func (m *UI) modelInfo(width int, sidebarLayout bool) string {
+	large := m.selectedLargeModel()
+	small := m.selectedSmallModel()
+
+	var blocks []string
+	// The balance leads the stack, right below the folder line where the
+	// eye starts, in every layout.
+	if credits := m.visibleCredits(); large != nil && credits != nil {
+		blocks = append(blocks, common.HypercreditBalance(m.com.Styles, *credits), "")
 	}
-	return common.ModelInfo(m.com.Styles, modelName, providerName, reasoningInfo, modelContext, width, m.visibleCredits())
+	if large != nil {
+		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, false))
+	}
+	if small != nil {
+		blocks = append(blocks, m.modelInfoLine(width, small, false, true))
+	}
+	if sidebarLayout && large != nil && m.session != nil {
+		blocks = append(blocks, common.ModelContextSummary(m.com.Styles, common.ModelContextInfo{
+			ContextUsed:    m.session.CompletionTokens + m.session.PromptTokens,
+			Cost:           m.session.Cost,
+			ModelContext:   large.CatwalkCfg.ContextWindow,
+			EstimatedUsage: m.session.EstimatedUsage,
+		}))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }
 
 // updateSidebarScrollState renders the sidebar content and computes scroll
@@ -108,7 +152,7 @@ func (m *UI) updateSidebarScrollState() {
 		"",
 		cwd,
 		"",
-		m.modelInfo(contentWidth),
+		m.modelInfo(contentWidth, true),
 		"",
 	}
 	subAgents := m.subAgentStatuses()

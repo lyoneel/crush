@@ -168,8 +168,12 @@ func (m *UI) mcpInfo(width, maxItems int, isSection bool) string {
 	var mcps []mcp.ClientInfo
 	t := m.com.Styles
 
+	hideDisabled := m.minimalistSidebar(isSection)
 	for _, mcp := range m.com.Config().MCP.Sorted() {
 		if state, ok := m.mcpStates[mcp.Name]; ok {
+			if hideDisabled && mcpHiddenInSidebar(state) {
+				continue
+			}
 			mcps = append(mcps, state)
 		}
 	}

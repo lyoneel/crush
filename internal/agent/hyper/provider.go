@@ -145,7 +145,12 @@ func Balance() *int {
 // /v1/credits endpoint and stores it for [Balance] to return. It returns
 // nil when the team has hypercredit display disabled: Hyper reports the
 // balance in dollars for them, so there is no hypercredit figure to show.
+// It also returns nil without a request while [CreditsFetchEnabled] is
+// off.
 func FetchCredits(ctx context.Context, apiKey string) (*int, error) {
+	if !CreditsFetchEnabled() {
+		return nil, nil
+	}
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,

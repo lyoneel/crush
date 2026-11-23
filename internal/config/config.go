@@ -329,6 +329,9 @@ type TUIOptions struct {
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	NerdFonts   *bool       `json:"nerd_fonts,omitempty" jsonschema:"description=Override Nerd Font glyph detection for the TUI: true forces glyphs on\\, false forces them off\\, and unset keeps automatic detection"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Crush,enum=default,enum=compact,enum=none,default=default"`
+	// Fork holds the fork's boolean feature flags, keyed by flag name.
+	// See fork_flags.go and FORK.md.
+	Fork map[string]bool `json:"fork,omitempty" jsonschema:"description=Fork feature flags keyed by flag name"`
 }
 
 // IsTransparent reports whether the TUI draws a transparent background. The
@@ -342,7 +345,12 @@ func (t *TUIOptions) IsTransparent() bool {
 // Older Crush builds stored the selected theme as `"theme":
 // "gruvbox-dark"`. When that string is encountered it is promoted to the
 // active theme name so existing configs keep loading.
-func (t *TUIOptions) UnmarshalJSON(data []byte) error {
+func (t *TUIOptions) UnmarshalJSON(data []byte) (err error) {
+	defer func() {
+		if err == nil {
+			foldLegacyForkFlags(t, data)
+		}
+	}()
 	type tuiOptionsAlias TUIOptions
 	var loose struct {
 		tuiOptionsAlias

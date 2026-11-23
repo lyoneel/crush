@@ -1041,6 +1041,13 @@
           ],
           "description": "Exit banner style after quitting Crush",
           "default": "default"
+        },
+        "fork": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object",
+          "description": "Fork feature flags keyed by flag name"
         }
       },
       "additionalProperties": false,

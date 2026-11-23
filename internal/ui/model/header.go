@@ -171,7 +171,7 @@ func renderHeaderDetails(
 		parts = append(parts, formattedPercentage)
 	}
 
-	if com.IsHyper() && hyperCredits != nil {
+	if com.ShowCredits() && hyperCredits != nil {
 		hc := t.Header.HypercreditIcon.Render(styles.HypercreditIcon) + " " + t.Header.Percentage.Render(common.FormatCredits(*hyperCredits))
 		parts = append(parts, hc)
 	}

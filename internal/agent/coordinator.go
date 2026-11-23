@@ -1227,6 +1227,9 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", slot, errModelNotSelected)
 	}
+	// Fork: selection hooks may adjust what the slot runs with (see
+	// config.RegisterSelectionHook); without any the selection is as is.
+	modelCfg = c.cfg.Config().EffectiveSelection(slot, modelCfg)
 	return c.buildModelFromSelection(ctx, modelCfg, isSubAgent)
 }
 
@@ -1271,8 +1274,10 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 	languageModel = newRefusalRetryModel(languageModel)
 
 	// Hyper completions no longer report the hypercredit balance, so wrap
-	// the Hyper models to fetch it from /v1/credits on every request.
-	if modelCfg.Provider == hyper.Name {
+	// the Hyper models to fetch it from /v1/credits on every request. The
+	// credits registry decides which models count: the hyper provider and
+	// whatever a router or gateway matcher claims.
+	if hyper.IsCreditsModel(modelCfg.Provider, modelCfg.Model) {
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
 	}
 

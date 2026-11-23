@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/clipboard"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/fork"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/crush/internal/ui/util"
 	"github.com/charmbracelet/crush/internal/workspace"
@@ -180,6 +182,19 @@ func largeModelProviderID(ws workspace.Workspace) string {
 	return cfg.Models[config.SelectedModelTypeLarge].Provider
 }
 
+// largeModelID returns the model ID of the currently selected large
+// model, or the empty string if none is set or the workspace is nil.
+func largeModelID(ws workspace.Workspace) string {
+	if ws == nil {
+		return ""
+	}
+	cfg := ws.Config()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Models[config.SelectedModelTypeLarge].Model
+}
+
 // NewCommon returns common UI configurations using the given theme.
 func NewCommon(ws workspace.Workspace, themeName string) *Common {
 	s := LoadThemeStyles(themeName)
@@ -215,6 +230,20 @@ func ThemeStylesFromConfig(cfg *config.Config) styles.Styles {
 // by Hyper.
 func (c *Common) IsHyper() bool {
 	return largeModelProviderID(c.Workspace) == "hyper"
+}
+
+// IsCreditsModel reports whether the currently selected large model
+// consumes hypercredits, per the credits registry: the hyper provider and
+// any model a registered router or gateway matcher claims.
+func (c *Common) IsCreditsModel() bool {
+	return hyper.IsCreditsModel(largeModelProviderID(c.Workspace), largeModelID(c.Workspace))
+}
+
+// ShowCredits reports whether the credits balance should show and be
+// fetched: the selected model consumes credits and no fork display gate
+// hides them.
+func (c *Common) ShowCredits() bool {
+	return c.IsCreditsModel() && fork.CreditsDisplayEnabled(c.Config())
 }
 
 // CenterRect returns a new [Rectangle] centered within the given area with the

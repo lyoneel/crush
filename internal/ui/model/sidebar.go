@@ -72,9 +72,9 @@ func (m *UI) modelInfoLine(width int, model *workspace.AgentModel, usage, smallM
 	return common.ModelInfo(m.com.Styles, model.CatwalkCfg.Name, providerName, effortInfo, modelContext, width, nil, smallModel)
 }
 
-// modelInfo renders the main model with its inline effort and context
-// usage/cost, the small model in the same format on the line below, and
-// the credits balance after both. With the sidebar layout the context and
+// modelInfo renders the credits balance first, then the main model with
+// its inline effort and context usage/cost, and the small model in the
+// same format on the line below. With the sidebar layout the context and
 // cost summary moves below the small model; the landing view keeps it
 // attached to the main model line.
 func (m *UI) modelInfo(width int, sidebarLayout bool) string {
@@ -82,6 +82,11 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 	small := m.selectedSmallModel()
 
 	var blocks []string
+	// The balance leads the stack, right below the folder line where the
+	// eye starts, in every layout.
+	if credits := m.visibleCredits(); large != nil && credits != nil {
+		blocks = append(blocks, common.HypercreditBalance(m.com.Styles, *credits), "")
+	}
 	if large != nil {
 		blocks = append(blocks, m.modelInfoLine(width, large, !sidebarLayout, false))
 	}
@@ -95,9 +100,6 @@ func (m *UI) modelInfo(width int, sidebarLayout bool) string {
 			ModelContext:   large.CatwalkCfg.ContextWindow,
 			EstimatedUsage: m.session.EstimatedUsage,
 		}))
-	}
-	if credits := m.visibleCredits(); large != nil && credits != nil {
-		blocks = append(blocks, "", common.HypercreditBalance(m.com.Styles, *credits))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, blocks...)
 }

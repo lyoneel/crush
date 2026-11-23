@@ -124,3 +124,34 @@ func TestModelInfoShowsSmallModelEffectiveEffort(t *testing.T) {
 	out := m.modelInfo(40, true)
 	require.Contains(t, out, "{"+want+"}")
 }
+
+func TestModelInfoPlacesBalanceBeforeBothModels(t *testing.T) {
+	m := stackTestModel(t)
+	credits := 42
+	m.hyperCredits = &credits
+	m.com.Config().Providers.Set("hyper", config.ProviderConfig{ID: "hyper", Name: "Charm Hyper"})
+	m.com.Config().Models[config.SelectedModelTypeLarge] = config.SelectedModel{Provider: "hyper", Model: "big-model"}
+	m.agentModel = workspace.AgentModel{
+		CatwalkCfg: catwalk.Model{ID: "big-model", Name: "Big Model"},
+		ModelCfg:   config.SelectedModel{Provider: "hyper", Model: "big-model"},
+	}
+
+	sidebar := m.modelInfo(40, true)
+	balance := strings.Index(sidebar, "Hypercredits")
+	require.GreaterOrEqual(t, balance, 0, "the balance must render")
+	require.Less(t, balance, strings.Index(sidebar, "Big Model"),
+		"the sidebar layout must render the balance above the models")
+
+	plain := m.modelInfo(40, false)
+	balance = strings.Index(plain, "Hypercredits")
+	require.GreaterOrEqual(t, balance, 0, "the balance must render")
+	require.Less(t, balance, strings.Index(plain, "Big Model"),
+		"the landing layout must also render the balance before the models")
+}
+
+func TestModelInfoHidesBalanceOutsideCreditsModels(t *testing.T) {
+	m := stackTestModel(t)
+	credits := 42
+	m.hyperCredits = &credits
+	require.NotContains(t, m.modelInfo(40, true), "Hypercredits")
+}

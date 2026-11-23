@@ -294,9 +294,10 @@ type Styles struct {
 
 	// ModelInfo (model name, provider, reasoning, token/cost summary)
 	ModelInfo struct {
-		Icon                 lipgloss.Style // Model icon (◇)
+		Icon                 lipgloss.Style // Main model icon (◇)
+		SmallIcon            lipgloss.Style // Small model icon (same glyph, subdued)
 		Name                 lipgloss.Style // Model name text
-		Provider             lipgloss.Style // "via <provider>" text
+		Provider             lipgloss.Style // "[provider]" text
 		ProviderFallback     lipgloss.Style // Provider on its own second line
 		Reasoning            lipgloss.Style // Reasoning effort text
 		TokenCount           lipgloss.Style // "(42K)" token count

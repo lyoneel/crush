@@ -33,7 +33,7 @@ func (m *UI) landingView() string {
 		cwd,
 	}
 
-	parts = append(parts, "", m.modelInfo(width))
+	parts = append(parts, "", m.modelInfo(width, false))
 	infoSection := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	var remainingHeightArea image.Rectangle

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"charm.land/x/nerdfont"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/session"
@@ -155,7 +156,7 @@ func renderHeaderDetails(
 	}
 
 	if lspErrorCount > 0 {
-		parts = append(parts, t.LSP.ErrorDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPErrorIcon, lspErrorCount)))
+		parts = append(parts, t.LSP.ErrorDiagnostic.Render(fmt.Sprintf("%s%d", nerdfont.Glyph(styles.LSPErrorIcon, "E"), lspErrorCount)))
 	}
 
 	agentCfg := com.Config().Agents[config.AgentCoder]
@@ -170,7 +171,7 @@ func renderHeaderDetails(
 		parts = append(parts, formattedPercentage)
 	}
 
-	if com.IsHyperCredits() && hyperCredits != nil {
+	if com.IsHyper() && hyperCredits != nil {
 		hc := t.Header.HypercreditIcon.Render(styles.HypercreditIcon) + " " + t.Header.Percentage.Render(common.FormatCredits(*hyperCredits))
 		parts = append(parts, hc)
 	}

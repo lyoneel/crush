@@ -202,11 +202,13 @@ type Workspace interface {
 
 	// Questions
 	//
-	// QuestionAnswer resolves the pending question with responses.
-	QuestionAnswer(responses []question.Answer) bool
+	// QuestionAnswer submits responses to the pending question batch
+	// with the given ID.
+	QuestionAnswer(batchID string, responses []question.Answer) bool
 
-	// QuestionCancel cancels the pending question.
-	QuestionCancel() bool
+	// QuestionCancel cancels the pending question batch with the
+	// given ID.
+	QuestionCancel(batchID string) bool
 
 	// Pinentry
 	//
@@ -247,9 +249,6 @@ type Workspace interface {
 	// Config mutations (proxied to server in client mode)
 	UpdatePreferredModel(scope config.Scope, modelType config.SelectedModelType, model config.SelectedModel) error
 	SetCompactMode(scope config.Scope, enabled bool) error
-	SetSidebarMinimalism(scope config.Scope, enabled bool) error
-	SetShowHypercredits(scope config.Scope, enabled bool) error
-	SetSymbolHints(scope config.Scope, enabled bool) error
 	SetProviderAPIKey(scope config.Scope, providerID string, apiKey any) error
 	SetConfigField(scope config.Scope, key string, value any) error
 	SetConfigFields(scope config.Scope, fields map[string]any) error
@@ -282,6 +281,12 @@ type Workspace interface {
 	MCPAuthenticate(ctx context.Context, name string) error
 	MCPPendingAuth() []mcptools.PendingAuthServer
 	MCPAuthURL(name string) string
+
+	// Skills toggles
+	SkillsDisabled(ctx context.Context) ([]string, error)
+	SkillSetDisabled(ctx context.Context, name string, disabled bool) error
+	SkillsEnabled(ctx context.Context) ([]string, error)
+	SkillSetConfigDisabled(ctx context.Context, name string, disabled bool) error
 
 	// Events
 	Subscribe(program *tea.Program)

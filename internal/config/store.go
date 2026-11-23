@@ -72,6 +72,10 @@ type RuntimeOverrides struct {
 	// selection made here always outranks whatever the shared config file
 	// happens to hold — see pinPreferredModelLocked.
 	Models map[SelectedModelType]SelectedModel
+	// Prompts replaces built-in prompts for this session only (via the
+	// --prompt flag). Entries win over options.prompts and hold absolute
+	// paths, since they were resolved against the invoking shell's cwd.
+	Prompts PromptPaths
 }
 
 // ConfigStore is the single entry point for all config access. It owns the
@@ -565,35 +569,11 @@ func (s *ConfigStore) SetCompactMode(scope Scope, enabled bool) error {
 	})
 }
 
-// SetSidebarMinimalism sets the sidebar minimalism setting and persists it.
-func (s *ConfigStore) SetSidebarMinimalism(scope Scope, enabled bool) error {
-	return s.update(scope, func(c *Config) map[string]any {
-		c.ensureTUI().SidebarMinimalism = &enabled
-		return map[string]any{"options.tui.sidebar_minimalism": enabled}
-	})
-}
-
-// SetShowHypercredits sets the Hyper credits visibility setting and persists it.
-func (s *ConfigStore) SetShowHypercredits(scope Scope, enabled bool) error {
-	return s.update(scope, func(c *Config) map[string]any {
-		c.ensureTUI().ShowHypercredits = &enabled
-		return map[string]any{"options.tui.show_hypercredits": enabled}
-	})
-}
-
 // SetTransparentBackground sets the transparent background setting and persists it.
 func (s *ConfigStore) SetTransparentBackground(scope Scope, enabled bool) error {
 	return s.update(scope, func(c *Config) map[string]any {
 		c.ensureTUI().Transparent = &enabled
 		return map[string]any{"options.tui.transparent": enabled}
-	})
-}
-
-// SetSymbolHints sets the symbol hints setting and persists it.
-func (s *ConfigStore) SetSymbolHints(scope Scope, enabled bool) error {
-	return s.update(scope, func(c *Config) map[string]any {
-		c.ensureTUI().SymbolHints = &enabled
-		return map[string]any{"options.tui.symbol_hints": enabled}
 	})
 }
 
@@ -1514,7 +1494,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 
 	// Reconfigure providers
 	env := env.New()
-	resolver := NewShellVariableResolver(env)
+	resolver := NewShellVariableResolver(env, WithWorkingDir(s.workingDir))
 
 	// Apply top-level env vars before configuring providers so variables
 	// like AWS_PROFILE are visible to the AWS SDK credential chain.

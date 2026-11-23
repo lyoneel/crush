@@ -123,7 +123,7 @@ func (m *Pinentry) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		"",
 		description,
 		t.Dialog.InputPrompt.Render(m.input.View()),
-		renderDialogHelp(t, &m.help, m, contentWidth, m.com.Config().IsSymbolHintsSafe()),
+		renderDialogHelp(t, &m.help, m, contentWidth),
 	}, "\n")
 
 	view := t.Dialog.View.Width(m.width).Render(content)

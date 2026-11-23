@@ -52,12 +52,6 @@ type ReasoningItem struct {
 	focused   bool
 }
 
-// Finished implements list.Item. Reasoning items are render-stable
-// outside of explicit SetFocused / SetMatch.
-func (r *ReasoningItem) Finished() bool {
-	return true
-}
-
 var (
 	_ Dialog   = (*Reasoning)(nil)
 	_ ListItem = (*ReasoningItem)(nil)
@@ -201,7 +195,7 @@ func (r *Reasoning) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	listView := t.Dialog.List.Height(r.list.Height()).Render(r.list.Render())
 	listView = joinScrollbar(t, listView, listHeight, listTotalHeight, listHeight, r.list.Offset())
 	rc.AddPart(listView)
-	rc.Help = renderDialogHelp(t, &r.help, r, innerWidth, r.com.Config().IsSymbolHintsSafe())
+	rc.Help = renderDialogHelp(t, &r.help, r, innerWidth)
 
 	view := rc.Render()
 

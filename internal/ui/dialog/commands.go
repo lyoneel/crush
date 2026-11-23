@@ -325,7 +325,7 @@ func (c *Commands) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	rc.AddPart(inputView)
 	listView := t.Dialog.List.Height(c.list.Height()).Render(c.list.Render())
 	rc.AddPart(listView)
-	rc.Help = renderDialogHelp(t, &c.help, c, innerWidth, c.com.Config().IsSymbolHintsSafe())
+	rc.Help = renderDialogHelp(t, &c.help, c, innerWidth)
 
 	if c.loading {
 		rc.Help = t.Dialog.HelpView.Width(innerWidth).Render(c.spinner.View() + " Generating Prompt...")
@@ -490,19 +490,8 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		}
 	}
 	// Only show toggle compact mode command if window width is larger than compact breakpoint (120)
-	// The toggle commands below work without an active session, so they
-	// stay outside the session guard and only carry the width guard.
-	if c.windowWidth >= sidebarCompactModeBreakpoint {
-		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_symbol_hints", "Toggle Symbol Hints", "", ActionToggleSymbolHints{}))
-	}
 	if c.windowWidth >= sidebarCompactModeBreakpoint && c.hasSession {
 		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar", "Toggle Sidebar", "ctrl+b", ActionToggleCompactMode{}))
-	}
-	// The toggle commands below work without an active session, so they
-	// stay outside the session guard and only carry the width guard.
-	if c.windowWidth >= sidebarCompactModeBreakpoint {
-		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar_minimalism", "Toggle Minimalist Sidebar", "", ActionToggleSidebarMinimalism{}))
-		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_hypercredits", "Toggle Hypercredits", "", ActionToggleHypercredits{}))
 	}
 	if c.hasSession {
 		cfgPrime := c.com.Config()
@@ -538,6 +527,13 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	if len(cfg.MCP) > 0 {
 		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mcps", "Toggle MCPs", "", ActionOpenDialog{
 			DialogID: MCPTogglesID,
+		}))
+	}
+
+	// Toggle skills for this repository when any are configured.
+	if len(cfg.Options.SkillsPaths) > 0 {
+		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_skills", "Toggle Skills", "", ActionOpenDialog{
+			DialogID: SkillsTogglesID,
 		}))
 	}
 
@@ -582,6 +578,9 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		mouseLabel = "Enable Mouse"
 	}
 	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}))
+
+	// Add Channels command — opens the channels management dialog.
+	commands = append(commands, NewCommandItem(c.com.Styles, "channels", "Channels", "", ActionOpenDialog{DialogID: ChannelsID}))
 
 	commands = append(
 		commands,

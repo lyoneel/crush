@@ -26,6 +26,9 @@ const (
 	ModelIcon       string = "◇"
 	HypercreditIcon string = "◆"
 
+	// GitBranchIcon is the Powerline branch glyph, shown only with Nerd Fonts.
+	GitBranchIcon string = "\ue0a0"
+
 	ArrowRightIcon string = "→"
 
 	// CodespanPadding is the padding rendered around inline code spans in
@@ -74,10 +77,17 @@ const (
 	ScrollbarThumb string = "┃"
 	ScrollbarTrack string = "│"
 
-	LSPErrorIcon   string = "E"
-	LSPWarningIcon string = "W"
-	LSPInfoIcon    string = "I"
-	LSPHintIcon    string = "H"
+	ChannelIcon string = "↳"
+
+	// LSP severity icons are Nerd Font glyphs, shown only when the terminal
+	// is expected to render them. Each glyph carries a trailing space as a
+	// separator from the count that follows it. Terminals without Nerd
+	// Font support fall back to the letters E, W, I, and H through
+	// nerdfont.Glyph at the call sites, which supply their own spacing.
+	LSPErrorIcon   string = "\U000F0159 " // nf-md-close_circle
+	LSPWarningIcon string = "\U000F0028 " // nf-md-alert
+	LSPInfoIcon    string = "\U000F02FC " // nf-md-information
+	LSPHintIcon    string = "\U000F0335 " // nf-md-bug_outline
 )
 
 const (
@@ -284,8 +294,7 @@ type Styles struct {
 
 	// ModelInfo (model name, provider, reasoning, token/cost summary)
 	ModelInfo struct {
-		Icon                 lipgloss.Style // Main model icon (◇)
-		SmallIcon            lipgloss.Style // Small model icon (same glyph, subdued)
+		Icon                 lipgloss.Style // Model icon (◇)
 		Name                 lipgloss.Style // Model name text
 		Provider             lipgloss.Style // "via <provider>" text
 		ProviderFallback     lipgloss.Style // Provider on its own second line
@@ -372,6 +381,12 @@ type Styles struct {
 		AssistantInfoDuration  lipgloss.Style
 		SubduedHypercreditIcon lipgloss.Style // Subdued ◆ for hypercredit figures within subdued text
 		AssistantCanceled      lipgloss.Style // Italic "Canceled" footer
+
+		// Channel message metadata line styles.
+		ChannelInfoIcon      lipgloss.Style // Chat-bubble glyph prefix
+		ChannelInfoSender    lipgloss.Style // Sender name in channel metadata line
+		ChannelInfoProvider  lipgloss.Style // "via <channel>" text
+		ChannelInfoTimestamp lipgloss.Style // "at <timestamp>" text
 	}
 
 	// Tool - styles for tool call rendering
@@ -627,7 +642,6 @@ type Styles struct {
 		Help lipgloss.Style
 
 		// Mode badges shown before the help hints.
-		ModeBadgeStd      lipgloss.Style
 		ModeBadgePlan     lipgloss.Style
 		ModeBadgeYolo     lipgloss.Style
 		ModeBadgeSysadmin lipgloss.Style
@@ -639,8 +653,6 @@ type Styles struct {
 		ModeBannerYoloBadge     lipgloss.Style
 		ModeBannerSysadmin      lipgloss.Style
 		ModeBannerSysadminBadge lipgloss.Style
-		ModeBannerCode          lipgloss.Style
-		ModeBannerCodeBadge     lipgloss.Style
 
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style

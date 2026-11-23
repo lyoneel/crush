@@ -40,42 +40,23 @@ type List struct {
 	totalHeightCache int
 	totalHeightValid bool
 
-	// cache is the F6 list-level render memo, keyed by item pointer.
-	// Each entry stores the rendered content, a pre-split slice of
-	// lines (so AtBottom / Render / VisibleItemIndices /
-	// findItemAtY all share one render per frame), the height, and
-	// the keys that govern invalidation (width and version). The
-	// frozen flag mirrors §4.5.1: once a Finished() item is
-	// rendered, subsequent draws return the stored output verbatim
-	// without calling back into Render.
+	// cache is the F6 list-level render memo, keyed by item pointer and
+	// valid while the item's width and version match.
 	cache map[Item]*listCacheEntry
 
-	// freezeSuppressed marks items the list must not freeze on the
-	// next render even when their Finished() reports true. This is
-	// the §4.5.1 selection-drag escape hatch (option (a)): items
-	// inside an active selection range render as live items so that
-	// per-line highlight overlays land on the latest content. Cleared
-	// on EndSelectionDrag.
-	freezeSuppressed map[Item]struct{}
+	// dragItems are the items inside an active selection drag, whose
+	// entries are dropped when the drag begins and again when it ends.
+	dragItems map[Item]struct{}
 }
 
 // listCacheEntry is the per-item entry in the list-level render memo.
 type listCacheEntry struct {
 	width   int
 	version uint64
-	frozen  bool
-	content string
+	height  int
 	lines   []string
-	height  int
-}
-
-// renderedItem is the legacy view of a cached entry returned by getItem.
-// Internal callers that don't need the line slice keep using this
-// shape; functions that walk lines (Render) take the slice off the
-// cache entry directly.
-type renderedItem struct {
-	content string
-	height  int
+	// stale entries keep an exact height but must re-render to be drawn.
+	stale bool
 }
 
 // NewList creates a new lazy-loaded list.
@@ -84,7 +65,7 @@ func NewList(items ...Item) *List {
 	l.items = items
 	l.selectedIdx = -1
 	l.cache = make(map[Item]*listCacheEntry)
-	l.freezeSuppressed = make(map[Item]struct{})
+	l.dragItems = make(map[Item]struct{})
 	return l
 }
 
@@ -119,25 +100,6 @@ func (l *List) Gap() int {
 	return l.gap
 }
 
-// gapBetween returns the effective gap between the items at idx and next.
-// It drops the configured gap when both items implement [NoGapItem] and
-// report NoGap; every other pair keeps the configured value. Pairs out of
-// range keep the configured gap so trailing-gap behavior is unchanged.
-func (l *List) gapBetween(idx, next int) int {
-	if l.gap <= 0 {
-		return l.gap
-	}
-	if idx < 0 || next < 0 || idx >= len(l.items) || next >= len(l.items) {
-		return l.gap
-	}
-	cur, curOk := l.items[idx].(NoGapItem)
-	nxt, nxtOk := l.items[next].(NoGapItem)
-	if curOk && nxtOk && cur.NoGap() && nxt.NoGap() {
-		return 0
-	}
-	return l.gap
-}
-
 // AtBottom returns whether the list is showing the last item at the bottom.
 func (l *List) AtBottom() bool {
 	if len(l.items) == 0 {
@@ -155,10 +117,9 @@ func (l *List) AtBottom() bool {
 			// No need to calculate further, we're already past the viewport height
 			return false
 		}
-		item := l.getItem(idx)
-		itemHeight := item.height
-		if idx > l.offsetIdx {
-			itemHeight += l.gapBetween(idx-1, idx)
+		itemHeight := l.itemHeight(idx)
+		if l.gap > 0 && idx > l.offsetIdx {
+			itemHeight += l.gap
 		}
 		totalHeight += itemHeight
 	}
@@ -195,13 +156,9 @@ func (l *List) TotalHeight() int {
 	}
 	total := 0
 	for idx := range l.items {
-		entry := l.renderItemEntry(idx)
-		if entry == nil {
-			continue
-		}
-		total += entry.height
-		if idx < len(l.items)-1 {
-			total += l.gapBetween(idx, idx+1)
+		total += l.itemHeight(idx)
+		if l.gap > 0 && idx < len(l.items)-1 {
+			total += l.gap
 		}
 	}
 	l.totalHeightCache = total
@@ -220,7 +177,7 @@ func (l *List) Prewarm(from, batch int) int {
 	}
 	end := min(from+batch, len(l.items))
 	for idx := from; idx < end; idx++ {
-		l.renderItemEntry(idx)
+		l.itemHeight(idx)
 	}
 	return end
 }
@@ -234,9 +191,9 @@ func (l *List) Prewarm(from, batch int) int {
 func (l *List) Overflows(height int) bool {
 	total := 0
 	for idx := len(l.items) - 1; idx >= 0; idx-- {
-		total += l.getItem(idx).height
-		if idx < len(l.items)-1 {
-			total += l.gapBetween(idx, idx+1)
+		total += l.itemHeight(idx)
+		if l.gap > 0 && idx < len(l.items)-1 {
+			total += l.gap
 		}
 		if total > height {
 			return true
@@ -271,10 +228,9 @@ func (l *List) ScrollPosition() (offsetIdx, offsetLine int) {
 func (l *List) Offset() int {
 	offset := 0
 	for idx := 0; idx < l.offsetIdx; idx++ {
-		item := l.getItem(idx)
-		offset += item.height
-		if idx < len(l.items)-1 {
-			offset += l.gapBetween(idx, idx+1)
+		offset += l.itemHeight(idx)
+		if l.gap > 0 && idx < len(l.items)-1 {
+			offset += l.gap
 		}
 	}
 	offset += l.offsetLine
@@ -287,10 +243,9 @@ func (l *List) lastOffsetItem() (int, int, int) {
 	var totalHeight int
 	var idx int
 	for idx = len(l.items) - 1; idx >= 0; idx-- {
-		item := l.getItem(idx)
-		itemHeight := item.height
-		if idx < len(l.items)-1 {
-			itemHeight += l.gapBetween(idx, idx+1)
+		itemHeight := l.itemHeight(idx)
+		if l.gap > 0 && idx < len(l.items)-1 {
+			itemHeight += l.gap
 		}
 		totalHeight += itemHeight
 		if totalHeight > l.height {
@@ -305,98 +260,75 @@ func (l *List) lastOffsetItem() (int, int, int) {
 	return idx, lineOffset, totalHeight
 }
 
-// getItem renders (if needed) and returns the item at the given index.
-// The result is served from the F6 cache when possible — see
-// renderItemEntry for the cache-key semantics.
-func (l *List) getItem(idx int) renderedItem {
-	if idx < 0 || idx >= len(l.items) {
-		return renderedItem{}
+// itemHeight returns the height of the item at the given index, rendering
+// it only when it has no current entry. A stale entry's height is exact.
+func (l *List) itemHeight(idx int) int {
+	item, entry := l.lookup(idx)
+	if item == nil {
+		return 0
 	}
-	entry := l.renderItemEntry(idx)
 	if entry == nil {
-		return renderedItem{}
+		entry = l.render(idx, item)
 	}
-	return renderedItem{content: entry.content, height: entry.height}
+	return entry.height
 }
 
-// renderItemEntry returns the cache entry for the given index, populating
-// the cache on miss. The result must not be retained past the next
-// invalidation (SetSize width change, SetItems, etc.).
-//
-// Render callbacks always run, even for frozen entries: callbacks
-// are how the list discovers per-frame state changes (selection,
-// highlight range) and they bump the item's version when those
-// changes affect the rendered output. A frozen item whose callback
-// run is a no-op (same focus, same highlight) keeps its stored
-// version and the cache hit is preserved on the post-callback
-// version check.
-func (l *List) renderItemEntry(idx int) *listCacheEntry {
-	if idx < 0 || idx >= len(l.items) {
+// drawEntry returns a current, drawable entry for the given index,
+// rendering it on a miss or when the entry is stale. The result must not
+// be retained past the next invalidation (SetSize width change, SetItems,
+// etc.).
+func (l *List) drawEntry(idx int) *listCacheEntry {
+	item, entry := l.lookup(idx)
+	if item == nil {
 		return nil
 	}
+	if entry == nil || entry.stale {
+		entry = l.render(idx, item)
+	}
+	return entry
+}
 
+// lookup runs the render callbacks for the item at idx and returns the
+// item to render along with its cache entry, or a nil entry when that is
+// out of date. Callbacks always run: they are how the list discovers
+// per-frame state (selection, highlight), and they bump the item's
+// version when that state changes its output.
+func (l *List) lookup(idx int) (Item, *listCacheEntry) {
+	if idx < 0 || idx >= len(l.items) {
+		return nil, nil
+	}
 	rawItem := l.items[idx]
-	entry := l.cache[rawItem]
-
-	// Run render callbacks. Callbacks may mutate the item (focus,
-	// highlight) which in turn bumps its version when state actually
-	// changes. We capture the post-callback version below.
 	item := rawItem
-	if len(l.renderCallbacks) > 0 {
-		for _, cb := range l.renderCallbacks {
-			if it := cb(idx, l.selectedIdx, item); it != nil {
-				item = it
-			}
+	for _, cb := range l.renderCallbacks {
+		if it := cb(idx, l.selectedIdx, item); it != nil {
+			item = it
 		}
 	}
-
-	version := rawItem.Version()
-	if entry != nil && entry.width == l.width && entry.version == version {
-		// Cache hit — frozen or unfrozen, the entry content is
-		// still correct because no version bump landed since the
-		// last render. Selection-drag suppression turns this into
-		// a miss only if the entry is frozen.
-		if !entry.frozen {
-			return entry
-		}
-		if _, suppressed := l.freezeSuppressed[rawItem]; !suppressed {
-			return entry
-		}
+	entry := l.cache[rawItem]
+	if entry == nil || entry.width != l.width || entry.version != rawItem.Version() {
+		return item, nil
 	}
+	return item, entry
+}
 
-	rendered := item.Render(l.width)
-	rendered = strings.TrimRight(rendered, "\n")
+// render renders item, the callback-adjusted form of the item at idx, and
+// stores the result in the cache.
+func (l *List) render(idx int, item Item) *listCacheEntry {
+	rawItem := l.items[idx]
+	rendered := strings.TrimRight(item.Render(l.width), "\n")
 	lines := strings.Split(rendered, "\n")
-	height := len(lines)
 
-	// Re-read the version after Render so that any version bumps
-	// caused by Render itself (e.g. an item that mutates internal
-	// state during rendering) are captured. Without this we would
-	// freeze a stale entry under the post-render version.
-	finalVersion := rawItem.Version()
-
-	frozen := false
-	if rawItem.Finished() {
-		if _, suppressed := l.freezeSuppressed[rawItem]; !suppressed {
-			frozen = true
-		}
-	}
-
+	entry := l.cache[rawItem]
 	if entry == nil {
 		entry = &listCacheEntry{}
 		l.cache[rawItem] = entry
 	}
-	// If the item's rendered height changed, the cached total height is
-	// no longer valid and must be recomputed on the next TotalHeight call.
-	if entry.height != height {
+	if entry.height != len(lines) {
 		l.totalHeightValid = false
 	}
-	entry.width = l.width
-	entry.version = finalVersion
-	entry.frozen = frozen
-	entry.content = rendered
-	entry.lines = lines
-	entry.height = height
+	// The version is read after Render so a bump Render itself causes is
+	// not mistaken for a later mutation.
+	*entry = listCacheEntry{width: l.width, version: rawItem.Version(), height: len(lines), lines: lines}
 	return entry
 }
 
@@ -408,18 +340,26 @@ func (l *List) invalidateAll() {
 	l.totalHeightValid = false
 }
 
-// Invalidate drops the cache entry for the given item, forcing a
-// re-render on the next getItem call. No-op if the item is not in
-// the cache.
+// Invalidate drops the cache entry for the given item, forcing a re-render
+// on next use. No-op if the item is not in the cache.
 func (l *List) Invalidate(item Item) {
 	delete(l.cache, item)
 }
 
-// InvalidateFrozen drops the frozen flag (and stored content) for the
-// given item. Equivalent to Invalidate but exposed under the F6
-// frozen-items vocabulary so external callers can express intent.
-func (l *List) InvalidateFrozen(item Item) {
-	delete(l.cache, item)
+// Restyle runs restyle on every item for a change that affects colours but
+// not layout, such as a theme swap. Cached heights that were current stay
+// valid, so scroll geometry needs no re-render; each item re-renders its
+// content once it is drawn.
+func (l *List) Restyle(restyle func(Item)) {
+	for _, item := range l.items {
+		entry := l.cache[item]
+		current := entry != nil && entry.width == l.width && entry.version == item.Version()
+		restyle(item)
+		if current {
+			entry.version = item.Version()
+			entry.stale = true
+		}
+	}
 }
 
 // retainCacheFor drops every cache entry whose key is not in the given
@@ -440,13 +380,10 @@ func (l *List) retainCacheFor(items []Item) {
 	}
 }
 
-// BeginSelectionDrag marks the items in the inclusive [startIdx, endIdx]
-// range as un-freezable for the duration of an active selection drag.
-// Frozen entries inside the range are dropped so the next render
-// reflects live selection-overlay output. The corresponding
-// EndSelectionDrag clears the suppression set and lets items
-// re-freeze on their next render. Indices outside the items slice
-// are clipped silently.
+// BeginSelectionDrag drops the cached entries of the items in the
+// inclusive [startIdx, endIdx] range, so they re-render with the live
+// selection overlay. EndSelectionDrag drops them again for a clean render.
+// Indices outside the items slice are clipped silently.
 func (l *List) BeginSelectionDrag(startIdx, endIdx int) {
 	if len(l.items) == 0 {
 		return
@@ -456,27 +393,18 @@ func (l *List) BeginSelectionDrag(startIdx, endIdx int) {
 	}
 	startIdx = max(startIdx, 0)
 	endIdx = min(endIdx, len(l.items)-1)
-	for i := startIdx; i <= endIdx; i++ {
-		it := l.items[i]
-		l.freezeSuppressed[it] = struct{}{}
-		// Drop any cached frozen entry so the next render rebuilds
-		// it as a live (un-frozen) entry that picks up the
-		// selection overlay.
-		if entry, ok := l.cache[it]; ok && entry.frozen {
-			delete(l.cache, it)
-		}
+	for _, it := range l.items[startIdx : endIdx+1] {
+		l.dragItems[it] = struct{}{}
+		delete(l.cache, it)
 	}
 }
 
-// EndSelectionDrag clears the selection-drag freeze suppression. Items
-// inside the previous range will re-freeze on their next render once
-// their Finished() reports true again.
+// EndSelectionDrag drops the entries of the items the drag covered so they
+// re-render without the selection overlay.
 func (l *List) EndSelectionDrag() {
-	for k := range l.freezeSuppressed {
-		delete(l.freezeSuppressed, k)
-		// Drop the cache entry so the next render produces a clean
-		// (un-highlighted) frozen entry.
-		delete(l.cache, k)
+	for it := range l.dragItems {
+		delete(l.dragItems, it)
+		delete(l.cache, it)
 	}
 }
 
@@ -510,11 +438,11 @@ func (l *List) ScrollBy(lines int) {
 
 		// Scroll down
 		l.offsetLine += lines
-		currentItem := l.getItem(l.offsetIdx)
-		for l.offsetLine >= currentItem.height {
-			l.offsetLine -= currentItem.height
-			if g := l.gapBetween(l.offsetIdx, l.offsetIdx+1); g > 0 {
-				l.offsetLine = max(0, l.offsetLine-g)
+		currentHeight := l.itemHeight(l.offsetIdx)
+		for l.offsetLine >= currentHeight {
+			l.offsetLine -= currentHeight
+			if l.gap > 0 {
+				l.offsetLine = max(0, l.offsetLine-l.gap)
 			}
 
 			// Move to next item
@@ -524,7 +452,7 @@ func (l *List) ScrollBy(lines int) {
 				l.ScrollToBottom()
 				return
 			}
-			currentItem = l.getItem(l.offsetIdx)
+			currentHeight = l.itemHeight(l.offsetIdx)
 		}
 
 		lastOffsetIdx, lastOffsetLine, _ := l.lastOffsetItem()
@@ -544,9 +472,10 @@ func (l *List) ScrollBy(lines int) {
 				l.ScrollToTop()
 				break
 			}
-			prevItem := l.getItem(l.offsetIdx)
-			totalHeight := prevItem.height
-			totalHeight += l.gapBetween(l.offsetIdx, l.offsetIdx+1)
+			totalHeight := l.itemHeight(l.offsetIdx)
+			if l.gap > 0 {
+				totalHeight += l.gap
+			}
 			l.offsetLine += totalHeight
 		}
 	}
@@ -564,9 +493,10 @@ func (l *List) VisibleItemIndices() (startIdx, endIdx int) {
 	visibleHeight := -l.offsetLine
 
 	for currentIdx < len(l.items) {
-		item := l.getItem(currentIdx)
-		visibleHeight += item.height
-		visibleHeight += l.gapBetween(currentIdx, currentIdx+1)
+		visibleHeight += l.itemHeight(currentIdx)
+		if l.gap > 0 {
+			visibleHeight += l.gap
+		}
 
 		if visibleHeight >= l.height {
 			break
@@ -632,13 +562,12 @@ func (l *List) renderWindow(budget int) []string {
 			break
 		}
 
-		entry := l.renderItemEntry(currentIdx)
+		entry := l.drawEntry(currentIdx)
 		if entry == nil {
 			break
 		}
 		itemLines := entry.lines
 		itemHeight := len(itemLines)
-		nextGap := l.gapBetween(currentIdx, currentIdx+1)
 
 		if currentOffset >= 0 && currentOffset < itemHeight {
 			// Append only the visible slice that fits in the
@@ -655,8 +584,8 @@ func (l *List) renderWindow(budget int) []string {
 			// Gap rows after the item, capped to the
 			// remaining budget so a 30k-line item with a
 			// trailing gap can't push past the viewport.
-			if nextGap > 0 {
-				gapBudget := min(budget-len(lines), nextGap)
+			if l.gap > 0 {
+				gapBudget := min(budget-len(lines), l.gap)
 				for range gapBudget {
 					lines = append(lines, "")
 				}
@@ -664,7 +593,7 @@ func (l *List) renderWindow(budget int) []string {
 		} else {
 			// offsetLine starts inside the gap.
 			gapOffset := currentOffset - itemHeight
-			gapRemaining := nextGap - gapOffset
+			gapRemaining := l.gap - gapOffset
 			if gapRemaining > 0 {
 				gapBudget := min(budget-len(lines), gapRemaining)
 				for range gapBudget {
@@ -725,7 +654,7 @@ func (l *List) RemoveItem(idx int) {
 	// Drop the cache entry for the removed item; entries for stable
 	// items stay valid because they are keyed by pointer, not index.
 	delete(l.cache, removed)
-	delete(l.freezeSuppressed, removed)
+	delete(l.dragItems, removed)
 
 	// Adjust selection if needed
 	if l.selectedIdx == idx {
@@ -807,10 +736,9 @@ func (l *List) ScrollToSelected() {
 		// Scroll so that the selected item is at the bottom
 		var totalHeight int
 		for i := l.selectedIdx; i >= 0; i-- {
-			item := l.getItem(i)
-			totalHeight += item.height
-			if i < l.selectedIdx {
-				totalHeight += l.gapBetween(i, i+1)
+			totalHeight += l.itemHeight(i)
+			if l.gap > 0 && i < l.selectedIdx {
+				totalHeight += l.gap
 			}
 			if totalHeight >= l.height {
 				l.offsetIdx = i
@@ -995,8 +923,7 @@ func (l *List) findItemAtY(_, y int) (itemIdx int, itemY int) {
 	currentLine := -l.offsetLine // Negative because offsetLine is how many lines are hidden
 
 	for currentIdx < len(l.items) && currentLine < l.height {
-		item := l.getItem(currentIdx)
-		itemEndLine := currentLine + item.height
+		itemEndLine := currentLine + l.itemHeight(currentIdx)
 
 		// Check if y is within this item's visible range
 		if y >= currentLine && y < itemEndLine {
@@ -1007,7 +934,9 @@ func (l *List) findItemAtY(_, y int) (itemIdx int, itemY int) {
 
 		// Move to next item
 		currentLine = itemEndLine
-		currentLine += l.gapBetween(currentIdx, currentIdx+1)
+		if l.gap > 0 {
+			currentLine += l.gap
+		}
 		currentIdx++
 	}
 

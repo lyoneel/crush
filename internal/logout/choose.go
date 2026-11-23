@@ -136,7 +136,7 @@ func (m chooseModel) content() string {
 		}
 	}
 	b.WriteString("\n\n  ")
-	b.WriteString(conditionalHelpView(m.help, m.keymap))
+	b.WriteString(m.help.View(m.keymap))
 	b.WriteString("\n")
 	return b.String()
 }

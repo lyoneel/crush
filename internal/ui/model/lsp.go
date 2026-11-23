@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"charm.land/x/nerdfont"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -97,27 +98,12 @@ func (m *UI) lspErrorCount() int {
 	return count
 }
 
-// lspEverActive reports whether an LSP should count as activated for the
-// sidebar's never-interacted filter. A server that left the unstarted or
-// disabled state was started at least once in the app's lifetime; a
-// non-zero ConnectedAt marks a server that was ready before, surviving
-// UI restarts because the state round-trips through the workspace API.
-func lspEverActive(info workspace.LSPClientInfo) bool {
-	if info.State != lsp.StateUnstarted && info.State != lsp.StateDisabled {
-		return true
-	}
-	return !info.ConnectedAt.IsZero()
-}
-
 // lspInfo renders the LSP status section showing active LSP clients and their
 // diagnostic counts. It renders from the memoized state only: this runs on
 // every frame, and the workspace probes behind it are synchronous HTTP
 // round-trips in client/server mode. LSP events (plus the TTL backstop)
 // keep the memoized state fresh off-thread; see requestLSPRefresh.
-// With the sidebar flag the section hides LSPs that never activated this
-// run (or any run, through ConnectedAt); the landing view and the compact
-// details keep the full list.
-func (m *UI) lspInfo(width, maxItems int, isSection, sidebar bool) string {
+func (m *UI) lspInfo(width, maxItems int, isSection bool) string {
 	t := m.com.Styles
 
 	states := slices.SortedFunc(maps.Values(m.lspStates), func(a, b workspace.LSPClientInfo) int {
@@ -126,9 +112,6 @@ func (m *UI) lspInfo(width, maxItems int, isSection, sidebar bool) string {
 
 	var lsps []LSPInfo
 	for _, state := range states {
-		if sidebar && !lspEverActive(state) {
-			continue
-		}
 		counts := m.lspDiagnostics[state.Name]
 		lsps = append(lsps, LSPInfo{LSPClientInfo: state, Diagnostics: map[protocol.DiagnosticSeverity]int{
 			protocol.SeverityError:       counts.Error,
@@ -154,16 +137,16 @@ func (m *UI) lspInfo(width, maxItems int, isSection, sidebar bool) string {
 func lspDiagnostics(t *styles.Styles, diagnostics map[protocol.DiagnosticSeverity]int) string {
 	var errs []string
 	if diagnostics[protocol.SeverityError] > 0 {
-		errs = append(errs, t.LSP.ErrorDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPErrorIcon, diagnostics[protocol.SeverityError])))
+		errs = append(errs, t.LSP.ErrorDiagnostic.Render(fmt.Sprintf("%s%d", nerdfont.Glyph(styles.LSPErrorIcon, "E"), diagnostics[protocol.SeverityError])))
 	}
 	if diagnostics[protocol.SeverityWarning] > 0 {
-		errs = append(errs, t.LSP.WarningDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPWarningIcon, diagnostics[protocol.SeverityWarning])))
+		errs = append(errs, t.LSP.WarningDiagnostic.Render(fmt.Sprintf("%s%d", nerdfont.Glyph(styles.LSPWarningIcon, "W"), diagnostics[protocol.SeverityWarning])))
 	}
 	if diagnostics[protocol.SeverityHint] > 0 {
-		errs = append(errs, t.LSP.HintDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPHintIcon, diagnostics[protocol.SeverityHint])))
+		errs = append(errs, t.LSP.HintDiagnostic.Render(fmt.Sprintf("%s%d", nerdfont.Glyph(styles.LSPHintIcon, "H"), diagnostics[protocol.SeverityHint])))
 	}
 	if diagnostics[protocol.SeverityInformation] > 0 {
-		errs = append(errs, t.LSP.InfoDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPInfoIcon, diagnostics[protocol.SeverityInformation])))
+		errs = append(errs, t.LSP.InfoDiagnostic.Render(fmt.Sprintf("%s%d", nerdfont.Glyph(styles.LSPInfoIcon, "I"), diagnostics[protocol.SeverityInformation])))
 	}
 	return strings.Join(errs, " ")
 }

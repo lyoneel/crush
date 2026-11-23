@@ -42,27 +42,19 @@ type countingWorkspace struct {
 	mcpStates      map[string]mcp.ClientInfo
 	mcpPendingAuth []mcp.PendingAuthServer
 
-	// sidebarMinimalismCalls records SetSidebarMinimalism persistence calls.
-	sidebarMinimalismCalls []bool
-
-	// showHypercreditsCalls records SetShowHypercredits persistence calls.
-	showHypercreditsCalls []bool
-
-	// symbolHintsCalls records SetSymbolHints persistence calls.
-	symbolHintsCalls []bool
-	readyCalls       int
-	agentBusyCalls   int
-	queuedCalls      int
-	queueListCalls   int
-	permCalls        int
-	permSetCalls     int
-	clearQueueCalls  int
-	cancelCalls      int
-	modelCalls       int
-	lspStateCalls    int
-	lspDiagCalls     int
-	mcpStateCalls    int
-	mcpPendingCalls  int
+	readyCalls      int
+	agentBusyCalls  int
+	queuedCalls     int
+	queueListCalls  int
+	permCalls       int
+	permSetCalls    int
+	clearQueueCalls int
+	cancelCalls     int
+	modelCalls      int
+	lspStateCalls   int
+	lspDiagCalls    int
+	mcpStateCalls   int
+	mcpPendingCalls int
 }
 
 func (w *countingWorkspace) AgentIsReady() bool { w.readyCalls++; return w.ready }
@@ -117,21 +109,6 @@ func (w *countingWorkspace) LSPGetStates() map[string]workspace.LSPClientInfo {
 func (w *countingWorkspace) LSPGetDiagnosticCounts(name string) lsp.DiagnosticCounts {
 	w.lspDiagCalls++
 	return w.lspDiags[name]
-}
-
-func (w *countingWorkspace) SetSidebarMinimalism(scope config.Scope, enabled bool) error {
-	w.sidebarMinimalismCalls = append(w.sidebarMinimalismCalls, enabled)
-	return nil
-}
-
-func (w *countingWorkspace) SetShowHypercredits(scope config.Scope, enabled bool) error {
-	w.showHypercreditsCalls = append(w.showHypercreditsCalls, enabled)
-	return nil
-}
-
-func (w *countingWorkspace) SetSymbolHints(scope config.Scope, enabled bool) error {
-	w.symbolHintsCalls = append(w.symbolHintsCalls, enabled)
-	return nil
 }
 
 func (w *countingWorkspace) MCPGetStates() map[string]mcp.ClientInfo {
@@ -343,7 +320,7 @@ func TestMessageCreatedEventRefreshesBusyAndQueue(t *testing.T) {
 
 	runCmds(m, cmd)
 	require.True(t, m.isAgentBusy(), "refreshed busy state must land in the cache")
-	require.Equal(t, 1, m.promptQueue, "refreshed queue count must land in the cache")
+	require.Equal(t, 1, m.promptQueue.Shown(), "refreshed queue count must land in the cache")
 	require.False(t, m.busyFetchInFlight)
 	require.False(t, m.promptQueueInFlight)
 }
@@ -386,18 +363,17 @@ func TestSessionSwitchRefreshesQueueAndBusy(t *testing.T) {
 	ws := &countingWorkspace{ready: true, queued: []string{"a", "b"}}
 	m := newBusyUI(ws)
 	warmCaches(m, true)
-	m.promptQueue = 5 // stale queue pill from the previous session
-	m.promptQueueItems = []string{"x", "y", "z", "w", "v"}
+	m.promptQueue.SetFetched([]string{"x", "y", "z", "w", "v"}) // stale queue pill from the previous session
 	ws.resetCounters()
 
 	_, cmd := m.Update(loadSessionMsg{session: &session.Session{ID: "s2"}})
-	require.Zero(t, m.promptQueue, "switching sessions must drop the old session's queue pill")
+	require.Zero(t, m.promptQueue.Shown(), "switching sessions must drop the old session's queue pill")
 	require.True(t, m.promptQueueInFlight, "session switch must schedule a queue refresh")
 	require.True(t, m.busyFetchInFlight, "session switch must schedule a busy refresh")
 
 	runCmds(m, cmd)
-	require.Equal(t, 2, m.promptQueue, "the new session's queue must be fetched")
-	require.Equal(t, []string{"a", "b"}, m.promptQueueItems)
+	require.Equal(t, 2, m.promptQueue.Shown(), "the new session's queue must be fetched")
+	require.Equal(t, []string{"a", "b"}, m.promptQueue.Items())
 }
 
 // TestToggleYoloWritesThroughCache: both permission-mode toggle paths share
@@ -473,7 +449,7 @@ func TestSendMessageSetsOptimisticBusy(t *testing.T) {
 
 	// esc right after enter: isAgentBusy gates cancelAgent, first press
 	// arms the double-press cancel.
-	require.Zero(t, m.promptQueue)
+	require.Zero(t, m.promptQueue.Shown())
 	m.cancelAgent()
 	require.True(t, m.isCanceling, "first esc press must arm cancellation")
 
@@ -491,8 +467,7 @@ func TestCancelAgentClearsQueueFromCachedCount(t *testing.T) {
 	ws := &countingWorkspace{ready: true, queued: []string{"a"}}
 	m := newBusyUI(ws)
 	warmCaches(m, true)
-	m.promptQueue = 1
-	m.promptQueueItems = []string{"a"}
+	m.promptQueue.SetFetched([]string{"a"})
 	ws.resetCounters()
 
 	cmd := m.cancelAgent()
@@ -500,8 +475,8 @@ func TestCancelAgentClearsQueueFromCachedCount(t *testing.T) {
 	require.Equal(t, 1, ws.clearQueueCalls, "esc with a queue must clear it")
 	require.Zero(t, ws.queuedCalls, "the decision must use the cached count, not a probe")
 	require.Zero(t, ws.queueListCalls, "the decision must use the cached count, not a probe")
-	require.Zero(t, m.promptQueue, "the cached count must be zeroed immediately")
-	require.Empty(t, m.promptQueueItems)
+	require.Zero(t, m.promptQueue.Shown(), "the cached count must be zeroed immediately")
+	require.Empty(t, m.promptQueue.Items())
 	require.False(t, m.isCanceling, "clearing the queue must not arm cancellation")
 }
 
@@ -564,17 +539,17 @@ func TestSetSessionMessagesGatesAnimationsOnBusy(t *testing.T) {
 	// animation clock so the ghost spinner stays still.
 	cmd := m.setSessionMessages(msgs)
 	require.Nil(t, cmd, "setSessionMessages must not start animations when agent is idle")
-	require.False(t, m.chat.animAllowed, "an idle session reload must freeze the animation clock")
-	require.Nil(t, m.chat.EnsureAnimating(), "a frozen clock must not arm while idle")
-	require.False(t, m.chat.animRunning)
+	require.True(t, m.animClock.frozen, "an idle session reload must freeze the animation clock")
+	require.Nil(t, m.ensureAnimating(), "a frozen clock must not arm while idle")
+	require.False(t, m.animClock.running)
 
 	// When the agent is busy, the clock may run for the same message.
 	warmCaches(m, true)
 	cmd = m.setSessionMessages(msgs)
 	require.Nil(t, cmd, "setSessionMessages must not arm the clock itself")
-	require.True(t, m.chat.animAllowed, "setSessionMessages must allow animations when agent is busy")
-	require.NotNil(t, m.chat.EnsureAnimating(), "a visible spinning message must arm the clock")
-	require.True(t, m.chat.animRunning)
+	require.False(t, m.animClock.frozen, "setSessionMessages must allow animations when agent is busy")
+	require.NotNil(t, m.ensureAnimating(), "a visible spinning message must arm the clock")
+	require.True(t, m.animClock.running)
 }
 
 // TestBusyProbeReEnablesFrozenAnimationClock pins the boot race: a session
@@ -606,21 +581,21 @@ func TestBusyProbeReEnablesFrozenAnimationClock(t *testing.T) {
 	require.False(t, m.isAgentBusy(), "boot: the memoized busy state is not populated yet")
 	cmd := m.setSessionMessages(msgs)
 	require.Nil(t, cmd)
-	require.False(t, m.chat.animAllowed, "the boot reload must freeze the clock off the unpopulated cache")
-	require.Nil(t, m.chat.EnsureAnimating(), "the frozen clock must not arm")
-	require.False(t, m.chat.animRunning)
+	require.True(t, m.animClock.frozen, "the boot reload must freeze the clock off the unpopulated cache")
+	require.Nil(t, m.ensureAnimating(), "the frozen clock must not arm")
+	require.False(t, m.animClock.running)
 
 	// The authoritative probe lands: the agent is busy. The gate must
 	// re-open so the visible spinner ticks.
 	m.applyBusyState(busyStateMsg{gen: m.busyFetchGen, ready: true, agentBusy: true})
-	require.True(t, m.chat.animAllowed, "a busy probe must re-enable the animation gate")
-	require.NotNil(t, m.chat.EnsureAnimating(), "a visible spinning item must arm the clock once allowed")
-	require.True(t, m.chat.animRunning)
+	require.False(t, m.animClock.frozen, "a busy probe must re-enable the animation gate")
+	require.NotNil(t, m.ensureAnimating(), "a visible spinning item must arm the clock once allowed")
+	require.True(t, m.animClock.running)
 
 	// An idle probe must not re-freeze the clock on its own: the ghost
 	// guard belongs to the session reload, not to the probe.
 	m.applyBusyState(busyStateMsg{gen: m.busyFetchGen, ready: true, agentBusy: false})
-	require.True(t, m.chat.animAllowed, "an idle probe must leave the gate alone")
+	require.False(t, m.animClock.frozen, "an idle probe must leave the gate alone")
 }
 
 // TestStaleBusyRefreshDiscardedAndReDispatched pins the generation guard for
@@ -666,16 +641,14 @@ func TestStalePromptQueueDiscardedAndReDispatched(t *testing.T) {
 	ws := &countingWorkspace{ready: true, queued: []string{"real"}}
 	m := newBusyUI(ws)
 	warmCaches(m, false)
-	m.promptQueue = 1
-	m.promptQueueItems = []string{"real"}
+	m.promptQueue.SetFetched([]string{"real"})
 
 	// A fetch is in flight; capture its generation, then a newer transition
 	// (esc clears the queue) supersedes it.
 	m.promptQueueInFlight = true
 	staleGen := m.promptQueueGen
 	m.invalidatePromptQueue()
-	m.promptQueue = 0
-	m.promptQueueItems = nil
+	m.promptQueue.ClearServer()
 
 	// The stale fetch (still saw one prompt) lands for the same session.
 	cmds := m.applyPromptQueue(promptQueueMsg{
@@ -683,9 +656,9 @@ func TestStalePromptQueueDiscardedAndReDispatched(t *testing.T) {
 		gen:        staleGen,
 		prompts:    []string{"stale"},
 	})
-	require.Zero(t, m.promptQueue,
+	require.Zero(t, m.promptQueue.Shown(),
 		"a stale queue result must not repopulate the cleared queue")
-	require.Empty(t, m.promptQueueItems)
+	require.Empty(t, m.promptQueue.Items())
 	require.NotEmpty(t, cmds,
 		"a stale queue result must re-dispatch the authoritative fetch")
 	require.True(t, m.promptQueueInFlight, "the re-dispatched fetch must be in flight")
@@ -709,7 +682,7 @@ func TestStalePromptQueuePreservesSessionScoping(t *testing.T) {
 		gen:        gen,
 		prompts:    []string{"from other session"},
 	})
-	require.Zero(t, m.promptQueue,
+	require.Zero(t, m.promptQueue.Shown(),
 		"a result from a different session must never populate the queue")
 	require.NotEmpty(t, cmds, "a session-mismatched result must re-fetch for the current session")
 }
@@ -735,17 +708,15 @@ func TestRenderHelpersDoNotProbeWorkspace(t *testing.T) {
 
 	for range 10 {
 		require.NotNil(t, m.selectedLargeModel())
-		m.selectedSmallModel()
-		m.lspInfo(40, 5, true, false)
+		m.lspInfo(40, 5, true)
 		require.Equal(t, 3, m.lspErrorCount())
 	}
 
-	// modelInfo reaches provider config only through the memoized model
-	// and the cached workspace config; with the agent not ready it
-	// renders the empty state.
+	// modelInfo reaches provider config only through the memoized model;
+	// with the agent not ready it renders the empty state.
 	m.agentReady = false
 	for range 10 {
-		m.modelInfo(40, false)
+		m.modelInfo(40)
 	}
 
 	require.Zero(t, ws.syncProbes(), "render helpers must never probe the workspace")

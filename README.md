@@ -1,140 +1,5 @@
 # Crush
 
-A personal fork of [Crush](https://github.com/charmbracelet/crush).
-It does not replace or deviate from the original project; I use it
-for my own needs, and I test changes to the program here. The fork
-adds features on top of upstream Crush; the upstream README below
-stays untouched.
-
-> [!WARNING]
-> Do not use this fork in production. If you build it, use a custom
-> binary name, for example `crushly`.
-
-## Fork features
-
-Each feature carries a state tag:
-
-- **[stable]** — in daily use, tested through real sessions; breaking
-  changes are unlikely
-- **[beta]** — works end to end, exercised less; the shape may still
-  change
-- **[work-in-progress]** — usable but rough; expect changes
-
-Changes that become stable enough go to the
-[upstream project](https://github.com/charmbracelet/crush), and
-each upstream release gets merged here.
-
-| Feature | State | Description |
-|---------|-------|-------------|
-| [Hypercredit balance for gateway-served Hyper models](#hypercredit-balance-for-gateway-served-hyper-models) | [stable] | Balance on gateway-served models, not just the direct provider |
-| [Small model display](#small-model-display) | [stable] | The small task model below the main one on the initial screen and sidebar |
-| [MCP capability counts in the LSP count style](#mcp-capability-counts-in-the-lsp-count-style) | [stable] | Per-server capability counts, matching the LSP display |
-| [Select-both model binding](#select-both-model-binding) | [stable] | One confirmation applies the model to both task sizes |
-| [Minimalist sidebar](#minimalist-sidebar) | [stable] | Disabled and never-activated resources out of the sidebar |
-| [Hypercredits visibility toggle](#hypercredits-visibility-toggle) | [stable] | Command to hide the balance and stop its fetches |
-| [Visually stable status bar](#visually-stable-status-bar) | [stable] | A badge in every mode; no status bar movement on change |
-| [Small model effort](#small-model-effort) | [beta] | The small model forced to its lowest reasoning effort |
-| [Symbol key hints](#symbol-key-hints) | [beta] | Keyboard-symbol hints with a toggle back to upstream spellings |
-
-### Hypercredit balance for gateway-served Hyper models [stable]
-
-Upstream shows the balance only on the direct `hyper` provider; the
-fork also shows it for models served through a gateway under
-`Hyper/` model ids or `/hyper/` path segments (matched in any letter
-case).
-
-Users who reach Hyper models through a home gateway get the
-credits feature on every model the gateway serves; without this
-change it shows only on the direct provider.
-
-### Small model display [stable]
-
-The small task model now displays on the initial screen and in the
-sidebar, in the same format as the main model, right below it.
-Titles and sub-agent work ride on that model; the user sees which
-one handles them at a glance.
-
-### MCP capability counts in the LSP count style [stable]
-
-MCP servers advertise capabilities (tools, prompts, resources), and
-a server carrying several of them used to spread the sidebar entry
-over multiple lines. Each server now shows a compact count in the
-same style as the LSP section, which keeps the entry to one line in
-most cases and makes the two resource sections visually consistent.
-
-### Select-both model binding [stable]
-
-Model selection shows the large and the small task model in the
-same dialog, and before the small model display existed the small
-model was easy to leave stale without noticing. If you run both
-task sizes on the same model, or you want to
-make sure that the small model is set, `shift+enter` applies the
-chosen model to both task sizes in one action instead of
-selecting, confirming, and re-selecting through the same dialog
-twice.
-
-### Minimalist sidebar [stable]
-
-Minimalist sidebar features can be enabled or disabled on demand via
-the `Toggle Minimalist Sidebar` command:
-
-- Disabled MCPs are not displayed.
-- LSPs that are disabled, or never activated in the session, are not
-  displayed.
-
-This reduces the visual charge in the sidebar, and the resources
-that matter come back the moment they start working.
-
-NOTE: the main initial screen is untouched by this feature; only
-the sidebar is affected.
-
-The choice persists across restarts (on by default).
-
-### Hypercredits visibility toggle [stable]
-
-The hypercredits balance display can be enabled or disabled on
-demand via the `Toggle Hypercredits` command. Hidden, the balance
-stays out of every surface it renders in and the display-only
-balance fetches stop; the fetch is wanted in the sidebar but not
-always in the header. The choice persists across restarts (shown by
-default).
-
-### Visually stable status bar [stable]
-
-The status bar now carries a `NORM` badge while neither plan nor
-yolo is active, alongside the existing `PLAN` and `YOLO` badges.
-
-The real problem is movement: the shift does not happen between
-plan and yolo — both carry a badge — but on entering or leaving the
-standard mode, which had no badge, and the status bar text moved
-horizontally on every such transition. The standard mode never
-needed a badge, but with one in every mode the bar keeps the same
-shape all the time, and that movement is gone.
-
-The "MODE" word is gone from all of them: the UI already offers a
-good amount of visual cues, and the word only occupied space that
-other status bar elements can use.
-
-### Small model effort [beta]
-
-The small model exists for small tasks, so the fork forces its
-reasoning effort down to the lowest level the model offers,
-whatever the UI selected; the display shows the enforced level, not
-the selection.
-
-### Symbol key hints [beta]
-
-Key hints render as keyboard symbols (`ctl+c`, `⇧+⏎`, `↕`), with
-platform-aware Alt on macOS. `/` > Toggle Symbol Hints switches back
-to the upstream spellings (persisted, symbols by default). Symbols
-read faster once learned, while the canonical spellings match
-upstream documentation and muscle memory; each user switches per
-taste.
-
-The rest of this README is the upstream README, unmodified.
-
----
-
 <p align="center">
     <a href="https://stuff.charm.sh/crush/charm-crush.png"><img width="450" alt="Charm Crush Logo" src="https://github.com/user-attachments/assets/cf8ca3ce-8b02-43f0-9d0f-5a331488da4b" /></a><br />
     <a href="https://github.com/charmbracelet/crush/releases"><img src="https://img.shields.io/github/release/charmbracelet/crush" alt="Latest Release"></a>
@@ -153,6 +18,7 @@ The rest of this README is the upstream README, unmodified.
 - **Session-Based:** maintain multiple work sessions and contexts per project
 - **LSP-Enhanced:** Crush uses LSPs for additional context, just like you do
 - **Extensible:** add capabilities via MCPs (`http`, `stdio`, and `sse`)
+- **Channel-Ready:** MCP servers can push real-time events into your session via [Claude Channels](https://code.claude.com/docs/en/channels-reference) — CI failures, webhooks, and more, acting on them without you typing a thing
 - **Works Everywhere:** first-class support in every terminal on macOS, Linux, Windows (PowerShell and WSL), Android, FreeBSD, OpenBSD, and NetBSD
 - **Industrial Grade:** built on the Charm ecosystem, powering 25k+ applications, from leading open source projects to business-critical infrastructure
 
@@ -317,14 +183,18 @@ go install -tags sqlite3_dotlk github.com/charmbracelet/crush@latest
 
 ## Getting Started
 
-The quickest way to get started is to choose a [Hyper][hyper] model from model
-picker. Follow the steps to authenticate and you'll be good to go.
-
-[Hyper], from Charm, is the official Crush provider. It’s subscription-based
-and optimized for Crush. It’s privacy focused, with zero data retention (ZDR)
-and is designed to comply with GDPR. [More on Hyper][hyper].
+The quickest way to get started is to choose a [Hyper][hyper] model from the 
+little model picker. Follow the steps to authenticate and you're ready to go.
 
 <p><a href="https://hyper.charm.land"><img width="340" height="200" alt="Charm Hyper" src="https://github.com/user-attachments/assets/50875289-7992-454d-9f14-9f790413fb5e" /></a></p>
+
+[Hyper][hyper], from Charm, is the official model provider for Crush. It’s 
+built  on open-weight models and is optimized for Crush, with an emphasis 
+on high-quality inference. There are subscription and prepaid options, including zero data retention 
+(ZDR). It's also GDPR compliant!
+
+[More on Hyper][hyper].
+
 
 ## API Keys
 
@@ -534,6 +404,10 @@ dialog.
 | Charmtone Pantera | `charmtone-panther` (default) |
 | Gruvbox Dark      | `gruvbox-dark`                |
 | Keanu             | `keanu`                       |
+| Rosé Pine         | `rose-pine`                   |
+| Rosé Pine Moon    | `rose-pine-moon`              |
+| Rosé Pine Dawn    | `rose-pine-dawn`              |
+| KITT              | `kitt`                        |
 
 ### LSPs
 
@@ -628,6 +502,170 @@ For other sessionless servers, mark them explicitly with
 `false` to force the default behavior for an auto-detected URL. The
 tradeoff is that a sessionless server won't push live
 tool/prompt/resource list-changed notifications.
+
+#### Channels (experimental)
+
+An MCP server can also act as a **channel**: instead of only exposing tools it
+calls, it *pushes* events straight into your session so Crush reacts to things
+happening outside the terminal — a webhook, a CI failure, a chat message. See
+the [channels reference](https://code.claude.com/docs/en/channels-reference)
+for the protocol.
+
+A server becomes a channel by declaring the `claude/channel` capability in its
+`initialize` result (`capabilities.experimental["claude/channel"] = {}`) and
+emitting `notifications/claude/channel` events with a `content` body and an
+optional `meta` map. Crush injects each event into the active session as a
+`<channel>` element:
+
+```text
+<channel source="webhook" severity="high" run_id="1234">
+build failed on main: https://ci.example.com/run/1234
+</channel>
+```
+
+Listing a channel server in `mcp` is **not** enough to enable it — pushing is
+gated behind an explicit opt-in, so a server present in config stays silent
+until you ask for it. Opt in per launch with the `--channels` flag:
+
+```bash
+# Enable one or more configured MCP servers as channels for this session.
+crush --channels server:webhook
+crush --channels server:webhook --channels server:signal
+```
+
+Or persistently, with `channel_enabled` on the server's `mcp` entry — no CLI
+flag needed on each launch:
+
+```json
+{
+  "mcp": {
+    "webhook": {
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "channel_enabled": true
+    },
+    "signal": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/path/to/signal-mcp",
+        "python",
+        "signal_mcp/main.py",
+        "--user-id",
+        "+15551234567",
+        "--channel"
+      ]
+    }
+  }
+}
+```
+
+In `crushrc`, use `--channel true`:
+
+```bash
+mcp add webhook --type http --url "https://example.com/mcp" --channel true
+```
+
+Once a server is opted in, a **Channels** section on the landing page and in
+the sidebar shows its state, and the **Channels** command lists every opted-in
+server along with channel-capable servers that are not enabled yet.
+
+The `source` attribute is always the (trusted) server name. Payloads are
+untrusted, server-initiated input: Crush validates their structure, caps the
+body and attribute sizes, restricts `meta` keys to identifiers
+(`[A-Za-z0-9_]`), escapes all content so a payload cannot break out of the
+`<channel>` element or forge attributes, and drops malformed payloads. A
+server that has not been opted in via `--channels` or `channel_enabled`, or
+that never declared the capability, cannot inject anything.
+
+Channel delivery works in the default in-process `crush` and against a shared
+`crush serve` backend. In-process, an event routes into the session you have
+open, or starts one if none is open, so it is never dropped. Against a
+`crush serve` backend the server routes each event exactly once — into the
+session an attached client is viewing (the most recently updated one when
+clients are viewing different sessions), otherwise into the workspace's most
+recent session, creating one only when none exists. That holds even with no
+clients connected, so a headless server still processes channel pushes;
+attached clients see the injected turn arrive through the normal event
+stream. Servers that are live channels are marked `channel` in the MCP list
+so you can confirm the opt-in took effect.
+
+**Two-way channels.** A channel can also be interactive. Because a channel is a
+regular MCP server, any tool it exposes (a `reply` tool, say) is available to
+the agent through the normal MCP tool path — nothing channel-specific is
+required. Declare `tools` in the server's capabilities, register the tool, and
+use the server's `instructions` string (injected into the system prompt) to
+tell Crush when to call it and which `<channel>` attribute to pass back (like a
+`chat_id`).
+
+For example, [Signal MCP](https://github.com/joestump/signal-mcp) lets Crush
+send and receive Signal messages through a
+[signal-cli](https://github.com/AsamK/signal-cli) daemon:
+
+1. **Start the daemon:** `signal-cli -a +15551234567 daemon --tcp 127.0.0.1:7583 --receive-mode on-start --no-receive-stdout`
+2. **Add to `crush.json`:** Use the example in the [MCPs](#mcps) section above.
+3. **Launch with channel:** `crush --channels server:signal`
+
+Incoming messages arrive as `<channel>` tags; use the `send_message_to_user` tool to reply.
+
+#### Channel reply routing
+
+By default a channel-originated turn only produces terminal output, so a
+person messaging you on Signal never sees the answer unless the model decides
+to call a send tool itself. Adding a `channel_reply` block to a channel
+server's MCP config makes the routing deterministic: when a turn that
+originated from that channel finishes without the model having replied through
+the channel, Crush sends the final assistant response back through the
+configured tool — to the sender for direct messages, or to the group for group
+messages.
+
+```json
+{
+  "mcp": {
+    "signal": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "signal_mcp/main.py", "--operator", "+15551234567", "--channel"],
+      "channel_reply": {
+        "user": { "tool": "send_message_to_user", "target_param": "user_id" },
+        "group": { "tool": "send_message_to_group", "target_param": "group_id" },
+        "suppress_tools": ["send"]
+      }
+    }
+  }
+}
+```
+
+In `crushrc`, pass the same object to `--channel-reply`:
+
+```bash
+mcp add signal --command uv \
+  --args run --args signal_mcp/main.py --args --operator --args +15551234567 --args --channel \
+  --channel true \
+  --channel-reply '{
+    "user": {"tool": "send_message_to_user", "target_param": "user_id"},
+    "group": {"tool": "send_message_to_group", "target_param": "group_id"},
+    "suppress_tools": ["send"]
+  }'
+```
+
+How it routes:
+
+- **Group pushes** (meta carries `group`) go through the `group` route;
+  **direct pushes** (meta carries `sender`) go through the `user` route.
+  `target_meta` overrides which meta attribute supplies the target;
+  `message_param` (default `message`) names the tool argument that receives
+  the reply text.
+- If the model already called a route tool — or any tool listed in
+  `suppress_tools` — during the turn, the automatic reply is skipped, so
+  richer model-driven replies aren't duplicated.
+- Local (non-channel) turns and channels without a `channel_reply` block are
+  unaffected.
+
+The same shape works for any messaging channel (Discord, Slack, …): point the
+routes at that server's send tools and the matching meta attributes.
 
 ### Hooks
 
@@ -1144,8 +1182,12 @@ collected.
 Details on exactly what’s collected are in the source code ([here](https://github.com/charmbracelet/crush/tree/main/internal/event)
 and [here](https://github.com/charmbracelet/crush/blob/main/internal/llm/agent/event.go)).
 
-You can opt out of metrics collection at any time by setting the environment
-variable by setting the following in your environment:
+Also, when you use Crush with [Hyper][hyper], your Crush usage metrics may 
+be associated with your Hyper account to help us improve the service and
+diagnose issues. For more information, see [the Hyper Privacy Policy](https://hyper.charm.land/legal/privacy-policy).
+
+Either way, you can opt out of metrics collection at any time by setting 
+the following  in your environment:
 
 ```bash
 export CRUSH_DISABLE_METRICS=1

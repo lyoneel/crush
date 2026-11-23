@@ -35,7 +35,6 @@ const (
 	InfoTypeUpdate
 	InfoTypePlan
 	InfoTypeYolo
-	InfoTypeCode
 	InfoTypeSysadmin
 )
 

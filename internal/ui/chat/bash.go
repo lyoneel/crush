@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/agent/tools"
@@ -47,7 +48,7 @@ type BashToolRenderContext struct {
 // RenderTool implements the [ToolRenderer] interface.
 func (b *BashToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
 	cappedWidth := cappedMessageWidth(width)
-	if opts.IsPending() {
+	if opts.IsStreamingInput() {
 		return pendingTool(sty, "Bash", opts.Anim, opts.Compact)
 	}
 
@@ -87,10 +88,19 @@ func (b *BashToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *
 	if params.RunInBackground {
 		options = append(options, "background", "true")
 	}
+	// Show how long the command ran (or has been running) beside the
+	// command; sub-second runs are noise, so they show nothing.
+	if opts.Elapsed >= time.Second {
+		options = append(options, "took", common.FormatDuration(opts.Elapsed))
+	}
 
 	header := bashHeader(sty, opts, cappedWidth, params.Description, cmd, options)
 	if opts.Compact {
 		return header
+	}
+
+	if live, ok := toolLiveOutputContent(sty, opts, cappedWidth); ok {
+		return joinToolParts(header, live)
 	}
 
 	if earlyState, ok := toolEarlyStateContent(sty, opts, cappedWidth); ok {
@@ -208,7 +218,7 @@ type JobOutputToolRenderContext struct {
 // RenderTool implements the [ToolRenderer] interface.
 func (j *JobOutputToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
 	cappedWidth := cappedMessageWidth(width)
-	if opts.IsPending() {
+	if opts.IsStreamingInput() {
 		return pendingTool(sty, "Job", opts.Anim, opts.Compact)
 	}
 
@@ -260,7 +270,7 @@ type JobKillToolRenderContext struct{}
 // RenderTool implements the [ToolRenderer] interface.
 func (j *JobKillToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
 	cappedWidth := cappedMessageWidth(width)
-	if opts.IsPending() {
+	if opts.IsStreamingInput() {
 		return pendingTool(sty, "Job", opts.Anim, opts.Compact)
 	}
 
@@ -290,6 +300,10 @@ func renderJobTool(sty *styles.Styles, opts *ToolRenderOpts, width int, action, 
 	header := jobHeader(sty, opts.Status, action, shellID, description, width)
 	if opts.Compact {
 		return header
+	}
+
+	if live, ok := toolLiveOutputContent(sty, opts, width); ok {
+		return joinToolParts(header, live)
 	}
 
 	if earlyState, ok := toolEarlyStateContent(sty, opts, width); ok {
@@ -332,4 +346,20 @@ func jobHeader(sty *styles.Styles, status ToolStatus, action, shellID, descripti
 // joinToolParts joins header and body with a blank line separator.
 func joinToolParts(header, body string) string {
 	return strings.Join([]string{header, "", body}, "\n")
+}
+
+// toolLiveOutputContent renders output streamed while a tool is still
+// running. When collapsed it shows the newest lines rather than the first,
+// since those are the ones still changing. Returns false when there is a
+// result or no visible live output yet.
+func toolLiveOutputContent(sty *styles.Styles, opts *ToolRenderOpts, width int) (string, bool) {
+	if opts.HasResult() || opts.LiveOutput == "" || opts.Status != ToolStatusRunning {
+		return "", false
+	}
+	bodyWidth := width - toolBodyLeftPaddingTotal
+	content := renderPlainToolOutput(sty, opts.LiveOutput, bodyWidth, opts.ExpandedContent, true)
+	if content == "" {
+		return "", false
+	}
+	return sty.Tool.Body.Render(content), true
 }

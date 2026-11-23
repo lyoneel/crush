@@ -70,6 +70,11 @@ func TestModelInfoStacksSmallModelBelowMain(t *testing.T) {
 	require.Contains(t, out, styles.ModelIcon, "the main model must use the main icon")
 	require.Equal(t, 2, strings.Count(out, styles.ModelIcon), "both model lines must use the same icon glyph")
 
+	mainStyled := m.com.Styles.ModelInfo.Icon.Render(styles.ModelIcon)
+	smallStyled := m.com.Styles.ModelInfo.SmallIcon.Render(styles.ModelIcon)
+	require.Equal(t, 1, strings.Count(out, mainStyled), "the main model icon must carry the main icon color")
+	require.Equal(t, 1, strings.Count(out, smallStyled), "the small model icon must carry the small icon color")
+
 }
 
 func TestModelInfoRendersIdenticalSmallModel(t *testing.T) {

@@ -1271,8 +1271,10 @@ func (c *coordinator) buildModelFromSelection(ctx context.Context, modelCfg conf
 	languageModel = newRefusalRetryModel(languageModel)
 
 	// Hyper completions no longer report the hypercredit balance, so wrap
-	// the Hyper models to fetch it from /v1/credits on every request.
-	if modelCfg.Provider == hyper.Name {
+	// the Hyper models to fetch it from /v1/credits on every request. The
+	// credits registry decides which models count: the hyper provider and
+	// whatever a router or gateway matcher claims.
+	if hyper.IsCreditsModel(modelCfg.Provider, modelCfg.Model) {
 		languageModel = newHyperCreditsModel(languageModel, c.hyperAPIKey)
 	}
 

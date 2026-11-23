@@ -220,7 +220,7 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Chat.ToggleSidebar = key.NewBinding(
 		key.WithKeys("ctrl+b"),
-		key.WithHelp("ctrl+b", "toggle sidebar"),
+		key.WithHelp("ctrl+b", "sidebar"),
 	)
 	km.Chat.PillLeft = key.NewBinding(
 		key.WithKeys("left"),
@@ -304,11 +304,11 @@ func DefaultKeyMap() KeyMap {
 	)
 	km.Chat.FocusSidebar = key.NewBinding(
 		key.WithKeys("l", "right"),
-		key.WithHelp("l/→", "focus sidebar"),
+		key.WithHelp("l/→", "sidebar"),
 	)
 	km.Chat.FocusChat = key.NewBinding(
 		key.WithKeys("h", "left"),
-		key.WithHelp("h/←", "focus chat"),
+		key.WithHelp("h/←", "chat"),
 	)
 	km.Initialize.Yes = key.NewBinding(
 		key.WithKeys("y", "Y"),

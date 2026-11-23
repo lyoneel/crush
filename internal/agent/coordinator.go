@@ -1227,6 +1227,9 @@ func (c *coordinator) buildModel(ctx context.Context, slot config.SelectedModelT
 	if !ok {
 		return Model{}, fmt.Errorf("%s %w", slot, errModelNotSelected)
 	}
+	// Fork: selection hooks may adjust what the slot runs with (see
+	// config.RegisterSelectionHook); without any the selection is as is.
+	modelCfg = c.cfg.Config().EffectiveSelection(slot, modelCfg)
 	return c.buildModelFromSelection(ctx, modelCfg, isSubAgent)
 }
 
